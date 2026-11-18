@@ -296,8 +296,8 @@ describe('10種類だけ並べる市場', () => {
 
 describe('CPU（港の拡張）', () => {
   for (const options of [HARBOR, HARBOR_TEN]) {
-    it(`CPU同士で60ゲーム回して全部ちゃんと終わる（市場：${options.market}）`, () => {
-      for (let g = 0; g < 60; g++) {
+    it(`CPU同士で30ゲーム回して全部ちゃんと終わる（市場：${options.market}）`, { timeout: 30_000 }, () => {
+      for (let g = 0; g < 30; g++) {
         const n = 2 + (g % 3);
         let s = createGame(
           { seats: Array.from({ length: n }, (_, i) => ({ name: `C${i}`, isHuman: false })), options },

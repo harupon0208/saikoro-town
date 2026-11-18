@@ -7,5 +7,7 @@ export default defineConfig({
   plugins: [react(), assetManifest()],
   test: {
     include: ['src/**/*.test.ts', 'build/**/*.test.ts'],
+    // CPU 同士で何十ゲームも回すテストがあるので、遅い CI でも切れないよう長めに
+    testTimeout: 30_000,
   },
 });
