@@ -678,12 +678,41 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
   const playerId = me.id;
   const target = targetId === null ? null : game.players[targetId];
 
-  const cardButtons = (ids: FacilityId[], pick: (id: FacilityId) => void) =>
-    ids.map((id) => (
-      <button key={id} className={`btn chip-btn c-${FACILITIES[id].color}`} onClick={() => pick(id)}>
-        {FACILITIES[id].emoji} {FACILITIES[id].name}
+  /** 施設を選ぶボタン：出目・絵・名前・持っている枚数・効果 */
+  const cardButtons = (owner: Player, pick: (id: FacilityId) => void) =>
+    swappableCards(owner).map((id) => (
+      <button
+        key={id}
+        className={`btn chip-btn swap-card c-${FACILITIES[id].color}`}
+        data-testid={`swap-${id}`}
+        onClick={() => pick(id)}
+      >
+        <span className="swap-roll">{rollsLabel(id)}</span>
+        <CardArt id={id} />
+        <span className="swap-text">
+          <b>
+            {FACILITIES[id].name}
+            <small>×{owner.cards[id]}</small>
+          </b>
+          <span className="swap-desc">{FACILITIES[id].description}</span>
+        </span>
       </button>
     ));
+
+  /** 持っている施設の一覧（見るだけ） */
+  const holdings = (owner: Player) => {
+    const ids = swappableCards(owner);
+    if (ids.length === 0) return <span className="muted">交換できる施設なし</span>;
+    return (
+      <span className="swap-holdings">
+        {ids.map((id) => (
+          <span key={id} className={`chip c-${FACILITIES[id].color}`}>
+            {FACILITIES[id].emoji} {FACILITIES[id].name}×{owner.cards[id]}
+          </span>
+        ))}
+      </span>
+    );
+  };
 
   let step: number;
   let body;
@@ -698,11 +727,15 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
             .map((o) => (
               <button
                 key={o.id}
-                className="btn"
+                className="btn swap-target"
                 disabled={swappableCards(o).length === 0}
                 onClick={() => setTargetId(o.id)}
               >
-                {o.name}
+                <span className="swap-target-head">
+                  <b>{o.name}</b>
+                  <span>{o.coins} c</span>
+                </span>
+                {holdings(o)}
               </button>
             ))}
         </div>
@@ -716,7 +749,11 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
     body = (
       <>
         <p>{target.name}に渡す施設を選んでください</p>
-        <div className="choice-list">{cardButtons(swappableCards(me), setGive)}</div>
+        <div className="swap-ref">
+          <span>{target.name}の施設：</span>
+          {holdings(target)}
+        </div>
+        <div className="choice-list">{cardButtons(me, setGive)}</div>
         <button className="btn wide" onClick={() => setTargetId(null)}>
           戻る
         </button>
@@ -727,7 +764,7 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
     body = (
       <>
         <p>{target.name}からもらう施設を選んでください</p>
-        <div className="choice-list">{cardButtons(swappableCards(target), setTake)}</div>
+        <div className="choice-list">{cardButtons(target, setTake)}</div>
         <button className="btn wide" onClick={() => setGive(null)}>
           戻る
         </button>
@@ -737,9 +774,27 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
     step = 3;
     body = (
       <>
-        <p>
-          あなたの<b>{FACILITIES[give].name}</b> ⇄ {target.name}の<b>{FACILITIES[take].name}</b>
-        </p>
+        <div className="swap-confirm">
+          <div>
+            <small>渡す</small>
+            <CardArt id={give} />
+            <b>{FACILITIES[give].name}</b>
+            <span className="swap-desc">
+              {rollsLabel(give)}：{FACILITIES[give].description}
+            </span>
+          </div>
+          <span className="swap-arrow" aria-hidden="true">
+            ⇄
+          </span>
+          <div>
+            <small>{target.name}から</small>
+            <CardArt id={take} />
+            <b>{FACILITIES[take].name}</b>
+            <span className="swap-desc">
+              {rollsLabel(take)}：{FACILITIES[take].description}
+            </span>
+          </div>
+        </div>
         <button
           className="btn gold wide"
           onClick={() => dispatch({ type: 'SWAP', playerId, targetId: target.id, give, take })}

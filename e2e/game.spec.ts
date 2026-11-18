@@ -192,14 +192,24 @@ test.describe('紫カード', () => {
 
     // ビジネスセンター
     await expect(sheet.getByRole('heading', { name: 'ビジネスセンター（1/3）' })).toBeVisible();
-    await sheet.getByRole('button', { name: 'ミナト' }).click();
+    // 相手を選ぶ前に、それぞれが持っている施設が見える
+    await expect(sheet.getByRole('button', { name: /ミナト/ })).toContainText('鉱山×1');
+    await expect(sheet.getByRole('button', { name: /ハル/ })).toContainText('麦畑×1');
+    await sheet.getByRole('button', { name: /ミナト/ }).click();
     await expect(sheet.getByRole('heading', { name: 'ビジネスセンター（2/3）' })).toBeVisible();
+    // 渡す施設を選ぶときも、相手の施設が見える
+    await expect(sheet.locator('.swap-ref')).toContainText('ミナトの施設');
+    await expect(sheet.locator('.swap-ref')).toContainText('鉱山×1');
     // 「戻る」で1つ前に戻れる
     await sheet.getByRole('button', { name: '戻る' }).click();
     await expect(sheet.getByRole('heading', { name: 'ビジネスセンター（1/3）' })).toBeVisible();
-    await sheet.getByRole('button', { name: 'ミナト' }).click();
+    await sheet.getByRole('button', { name: /ミナト/ }).click();
     await sheet.getByRole('button', { name: /麦畑/ }).click();
     await expect(sheet.getByRole('heading', { name: 'ビジネスセンター（3/3）' })).toBeVisible();
+    // もらう施設は、出目・枚数・効果つきで出る
+    await expect(sheet.getByTestId('swap-mine')).toContainText('9');
+    await expect(sheet.getByTestId('swap-mine')).toContainText('×1');
+    await expect(sheet.getByTestId('swap-mine')).toContainText('銀行から5コイン');
     await sheet.getByRole('button', { name: /鉱山/ }).click();
     await sheet.getByRole('button', { name: '交換する' }).click();
     await expect(sheet).toBeHidden();
