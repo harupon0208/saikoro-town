@@ -32,8 +32,9 @@ test.describe('港の拡張', () => {
     await page.getByRole('button', { name: 'スタート' }).click();
     await expect(page.getByTestId('table')).toBeVisible();
 
-    await expect(myBar(page).locator('[data-landmark="harbor"]')).toBeVisible();
-    await expect(myBar(page).locator('[data-landmark="airport"]')).toBeVisible();
+    // ランドマークは安い順：港・駅・モール・遊園地・電波塔・空港
+    const order = await myBar(page).locator('.lm-tile').evaluateAll((els) => els.map((e) => e.getAttribute('data-landmark')));
+    expect(order).toEqual(['harbor', 'station', 'mall', 'park', 'tower', 'airport']);
     await expect(page.locator('.market .card')).toHaveCount(10);
     await expect(page.getByTestId('deck-count')).toContainText('山札');
   });

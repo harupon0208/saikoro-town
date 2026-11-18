@@ -1,7 +1,7 @@
 // 港の拡張のルール
 import { describe, expect, it } from 'vitest';
 import { chooseCpuAction } from './ai';
-import { FACILITIES, facilityIdsFor } from './cards';
+import { FACILITIES, facilityIdsFor, playerLandmarks } from './cards';
 import { applyAction, isValidAction, rollTotal } from './engine';
 import { MARKET_KINDS } from './market';
 import { mulberry32 } from './rng';
@@ -41,6 +41,10 @@ describe('港の拡張：準備', () => {
     expect(Object.keys(base.players[0].landmarks)).toHaveLength(4);
     expect(base.options).toBeUndefined();
     expect(base.supply.sushi).toBe(0);
+  });
+
+  it('画面に出すランドマークの並びはコストの安い順', () => {
+    expect(playerLandmarks(harborGame(2).players[0])).toEqual(['harbor', 'station', 'mall', 'park', 'tower', 'airport']);
   });
 
   it('全種類を並べる：拡張の施設も6枚ずつ、紫は人数ぶん', () => {

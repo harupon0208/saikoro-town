@@ -161,9 +161,9 @@ export function landmarkIdsFor(options: GameOptions): LandmarkId[] {
   return LANDMARK_IDS.filter((id) => inEdition(options.expansions, LANDMARKS[id].expansion));
 }
 
-/** そのプレイヤーのランドマーク（このゲームで使うもの。並びは LANDMARK_IDS の順） */
+/** そのプレイヤーのランドマーク（このゲームで使うもの）。画面に出す並びはコストの安い順（ユーザー希望） */
 export function playerLandmarks(p: Player): LandmarkId[] {
-  return LANDMARK_IDS.filter((id) => id in p.landmarks);
+  return LANDMARK_IDS.filter((id) => id in p.landmarks).sort((a, b) => LANDMARKS[a].cost - LANDMARKS[b].cost);
 }
 
 /** 出目の小さい順（同じなら定義順）。市場や街の並び */
