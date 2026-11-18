@@ -31,6 +31,8 @@ export function CardTile({
   stock,
   order = 0,
   pickedBy,
+  fresh,
+  arrive,
   onClick,
 }: {
   id: FacilityId;
@@ -45,12 +47,15 @@ export function CardTile({
   order?: number;
   /** CPU がこのカードを建てようとしている（その人の名前） */
   pickedBy?: string;
+  /** 10種類の市場：新しく並んだ／補充された（arrive は今まさに並んだところ） */
+  fresh?: 'new' | 'restock';
+  arrive?: boolean;
   onClick: () => void;
 }) {
   const c = FACILITIES[id];
   return (
     <button
-      className={`card c-${c.color}${dim ? ' dim' : ''}${glow ? ' glow' : ''}${pickedBy ? ' cpu-pick' : ''}`}
+      className={`card c-${c.color}${dim ? ' dim' : ''}${glow ? ' glow' : ''}${pickedBy ? ' cpu-pick' : ''}${fresh ? ` fresh-${fresh}` : ''}${arrive ? ' arrive' : ''}`}
       style={{ '--order': order } as React.CSSProperties}
       onClick={onClick}
       data-anchor={anchor}
@@ -69,6 +74,11 @@ export function CardTile({
           </span>
         )}
       </span>
+      {fresh && (
+        <span className={`fresh-tag ${fresh}`} data-testid={`fresh-${id}`}>
+          {fresh === 'new' ? 'NEW' : '補充'}
+        </span>
+      )}
       {pickedBy && (
         <span className="pick-tag" data-testid="cpu-pick">
           {pickedBy}が選んだ！
@@ -101,18 +111,43 @@ export function marketIds(game: GameState): FacilityId[] {
 }
 
 /** 市場 */
+/**
+ * 10種類の市場で最後に補充したカード。補充した人の次の番が終わるまで「NEW」「補充」を出す
+ * （ほかの全員も、自分の番で1回は見られる）
+ */
+export function freshInMarket(game: GameState): Map<FacilityId, 'new' | 'restock'> {
+  const m = new Map<FacilityId, 'new' | 'restock'>();
+  const r = game.refill;
+  if (!r || game.turn - r.turn > game.players.length) return m;
+  for (const id of r.restocked) m.set(id, 'restock');
+  for (const id of r.newKinds) m.set(id, 'new');
+  return m;
+}
+
 export function Market({
   game,
   viewer,
   pick,
+  step,
   onPick,
 }: {
   game: GameState;
   viewer: Player;
+  /** 再生中のコマ（市場に補充されたところを目立たせる） */
+  step?: Step | null;
   /** CPU が建てようとしているカード */
   pick?: { playerId: number; id: CardId } | null;
   onPick: (id: CardId) => void;
 }) {
+  const fresh = freshInMarket(game);
+  // 補充のコマを再生中：並んだカードを目立たせる（この間、状態の refill はまだ前のまま）
+  const arriving = new Set<FacilityId>();
+  for (const e of step?.events ?? []) {
+    if (e.type !== 'MARKET_REFILLED') continue;
+    for (const id of e.restocked) fresh.set(id, 'restock');
+    for (const id of e.newKinds) fresh.set(id, 'new');
+    for (const id of e.cards) arriving.add(id);
+  }
   return (
     <section className="market" aria-label="市場">
       <div className="section-head">
@@ -141,6 +176,8 @@ export function Market({
               stock={game.supply[id]}
               order={i}
               pickedBy={pick?.id === id ? game.players[pick.playerId].name : undefined}
+              fresh={fresh.get(id)}
+              arrive={arriving.has(id)}
               onClick={() => onPick(id)}
             />
           );

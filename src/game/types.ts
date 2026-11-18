@@ -99,6 +99,15 @@ export interface LogEntry {
   text: string;
 }
 
+export interface MarketRefill {
+  /** 補充した手番の通し番号 */
+  turn: number;
+  /** 新しく並んだ種類 */
+  newKinds: FacilityId[];
+  /** 今ある山に重ねた種類 */
+  restocked: FacilityId[];
+}
+
 /** 遊び方の設定。market: 'all' = 全種類を並べる / 'ten' = 山札から10種類だけ並べる */
 export interface GameOptions {
   expansions: Expansion[];
@@ -115,6 +124,8 @@ export interface GameState {
   deck?: FacilityId[];
   /** 港で合計に2を足した */
   harborBonus?: boolean;
+  /** 最後に市場へ補充したカード（10種類の市場）。turn から一周するまで画面で「NEW」「補充」を出す */
+  refill?: MarketRefill;
   current: number;
   phase: Phase;
   dice: number[];
@@ -159,7 +170,7 @@ export type GameEvent =
   /** マグロ漁船：手番の人がサイコロ2個を振った */
   | { type: 'TUNA_ROLLED'; playerId: number; dice: number[] }
   /** 市場の山が売り切れたので、山札から引いて並べた（引いた順） */
-  | { type: 'MARKET_REFILLED'; cards: FacilityId[] }
+  | { type: 'MARKET_REFILLED'; cards: FacilityId[]; newKinds: FacilityId[]; restocked: FacilityId[] }
   | { type: 'TURN_STARTED'; playerId: number }
   | { type: 'GAME_WON'; playerId: number };
 

@@ -336,9 +336,15 @@ function doBuild(ctx: Ctx, id: FacilityId | LandmarkId | null): void {
       const before = { ...s.supply };
       const drawn = refill(s.supply, s.deck);
       if (drawn.length > 0) {
-        ctx.ev.push({ type: 'MARKET_REFILLED', cards: drawn });
-        const fresh = [...new Set(drawn)].filter((d) => before[d] === 0);
-        log(ctx, `市場に新しいカード：${fresh.map(cardName).join('・') || '（今ある種類に補充）'}`);
+        const kinds = [...new Set(drawn)];
+        const newKinds = kinds.filter((d) => before[d] === 0);
+        const restocked = kinds.filter((d) => before[d] > 0);
+        s.refill = { turn: s.turn, newKinds, restocked };
+        ctx.ev.push({ type: 'MARKET_REFILLED', cards: drawn, newKinds, restocked });
+        const parts = [];
+        if (newKinds.length > 0) parts.push(`新しく並んだ：${newKinds.map(cardName).join('・')}`);
+        if (restocked.length > 0) parts.push(`補充：${restocked.map(cardName).join('・')}`);
+        log(ctx, `市場に新しいカード（${parts.join(' ／ ')}）`);
       }
     }
   }

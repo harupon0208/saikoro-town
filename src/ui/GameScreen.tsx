@@ -119,7 +119,7 @@ export function GameScreen(props: Props) {
   const background = themeImageUrl('background');
   const logo = themeImageUrl('logo');
 
-  const market = <Market game={game} viewer={viewer} pick={cpuPick} onPick={setDetail} />;
+  const market = <Market game={game} viewer={viewer} pick={cpuPick} step={step} onPick={setDetail} />;
   const town = <Town player={viewer} fx={fx} onPick={setDetail} />;
   const log = <LogList game={game} />;
   const dicePanel = (

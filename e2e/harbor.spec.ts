@@ -90,6 +90,32 @@ test.describe('港の拡張', () => {
     await expect(page.getByTestId('coins-0')).toContainText('13', { timeout: 8000 });
   });
 
+  test('10種類の市場：売り切れて補充されたら、何が並んだか一言と「NEW」で分かる', async ({ page }) => {
+    const save = harborState((s) => {
+      s.options = { expansions: ['harbor'], market: 'ten' };
+      for (const id of Object.keys(s.supply) as (keyof typeof s.supply)[]) s.supply[id] = 0;
+      for (const id of ['wheat', 'ranch', 'bakery', 'cafe', 'convenience', 'forest', 'cheese', 'furniture', 'mine', 'apple'] as const)
+        s.supply[id] = 2;
+      s.supply.wheat = 1;
+      s.deck = ['ranch', 'sushi', 'tuna'];
+      s.phase = 'build';
+      s.dice = [6];
+    });
+    await open(page, { speed: 'normal', save });
+    await page.getByRole('button', { name: '続きから' }).click();
+    await expect(page.getByTestId('fresh-sushi')).toHaveCount(0);
+    await page.locator('.market [data-card="wheat"]').click();
+    await page.getByRole('button', { name: /建てる/ }).click();
+
+    await expect(page.getByTestId('caption')).toHaveText('市場に「寿司屋」が並んだ！', { timeout: 8000 });
+    await expect(page.getByTestId('fresh-sushi')).toHaveText('NEW');
+    await expect(page.getByTestId('fresh-ranch')).toHaveText('補充');
+    // 相手の番が終わって、自分の次の番になっても残っている
+    await expect(page.getByRole('button', { name: '1個振る' })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('fresh-sushi')).toHaveText('NEW');
+    await expect(page.getByTestId('deck-count')).toContainText('山札 1枚');
+  });
+
   test('拡張のカードは市場に出て、詳しい説明が見られる', async ({ page }) => {
     const save = harborState(() => {});
     await open(page, { speed: 'none', save });

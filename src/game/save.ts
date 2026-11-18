@@ -92,6 +92,11 @@ export function isGameState(x: unknown): x is GameState {
   if (deck !== undefined && !(Array.isArray(deck) && deck.every((d) => typeof d === 'string' && isFacilityId(d))))
     return false;
   if (harborBonus !== undefined && typeof harborBonus !== 'boolean') return false;
+  const { refill } = x;
+  if (refill !== undefined) {
+    const ids = (v: unknown) => Array.isArray(v) && v.every((d) => typeof d === 'string' && isFacilityId(d));
+    if (!isObj(refill) || !isInt(refill.turn) || !ids(refill.newKinds) || !ids(refill.restocked)) return false;
+  }
   return true;
 }
 

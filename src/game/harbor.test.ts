@@ -285,6 +285,28 @@ describe('10種類だけ並べる市場', () => {
     expect(r.state.deck!.length).toBe(s.deck!.length - (refill as { cards: FacilityId[] }).cards.length);
   });
 
+  it('補充したとき、新しく並んだ種類と、今ある山に重ねた種類を記録する', () => {
+    const s = harborGame(2, HARBOR_TEN, 3);
+    for (const id of Object.keys(s.supply) as FacilityId[]) s.supply[id] = 0;
+    const shown: FacilityId[] = ['wheat', 'ranch', 'bakery', 'cafe', 'convenience', 'forest', 'cheese', 'furniture', 'mine', 'apple'];
+    for (const id of shown) s.supply[id] = 2;
+    s.supply.wheat = 1;
+    s.deck = ['ranch', 'sushi', 'tuna'];
+    s.players[0].coins = 5;
+    s.phase = 'build';
+    s.dice = [6];
+    const r = act(s, { type: 'BUILD', playerId: 0, id: 'wheat' });
+    expect(r.events).toContainEqual({
+      type: 'MARKET_REFILLED',
+      cards: ['ranch', 'sushi'],
+      newKinds: ['sushi'],
+      restocked: ['ranch'],
+    });
+    expect(r.state.refill).toEqual({ turn: s.turn, newKinds: ['sushi'], restocked: ['ranch'] });
+    expect(r.state.deck).toEqual(['tuna']);
+    expect(r.state.log.map((l) => l.text)).toContain('市場に新しいカード（新しく並んだ：寿司屋 ／ 補充：牧場）');
+  });
+
   it('並んでいないカードは建てられない', () => {
     const s = harborGame(2, HARBOR_TEN, 3);
     const hidden = facilityIdsFor(HARBOR_TEN).find((id) => s.supply[id] === 0)!;
