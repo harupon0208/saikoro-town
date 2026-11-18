@@ -10,6 +10,7 @@ import { themeImageUrl } from './assets';
 import { CardArt } from './components/CardArt';
 import { LAND_AT } from './components/Die';
 import { type CardId, Coins, type Fx, LandmarkDots, LogList, Market, Rivals, Town } from './components/Cards';
+import { RollTable } from './components/RollTable';
 import { Sheet } from './components/Sheet';
 import { COLOR_NAMES, incomeFormula, rollsLabel } from './labels';
 import type { Settings } from './settings';
@@ -52,11 +53,12 @@ const PHASE_LABELS: Record<Phase, string> = {
   gameOver: '終了',
 };
 
-type Tab = 'market' | 'town' | 'rivals' | 'log';
+type Tab = 'market' | 'town' | 'rivals' | 'rolls' | 'log';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'market', label: '市場' },
   { id: 'town', label: '自分の街' },
   { id: 'rivals', label: '相手' },
+  { id: 'rolls', label: '出目表' },
   { id: 'log', label: 'ログ' },
 ];
 
@@ -122,6 +124,9 @@ export function GameScreen(props: Props) {
   const market = <Market game={game} viewer={viewer} pick={cpuPick} step={step} onPick={setDetail} />;
   const town = <Town player={viewer} fx={fx} onPick={setDetail} />;
   const log = <LogList game={game} />;
+  const rollTable = <RollTable game={game} viewer={viewer} onPick={setDetail} />;
+  // PC：右上の欄を「ログ／出目表」で切り替える
+  const [deskPanel, setDeskPanel] = useState<'log' | 'rolls'>('log');
   const dicePanel = (
     <DicePanel
       game={game}
@@ -174,8 +179,25 @@ export function GameScreen(props: Props) {
             </div>
             <div className="desk-center">{dicePanel}</div>
             <div className="desk-log felt-dark">
-              <h2>ログ</h2>
-              {log}
+              <div className="desk-switch" role="tablist" aria-label="ログと出目表">
+                {(
+                  [
+                    ['log', 'ログ'],
+                    ['rolls', '出目表'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={deskPanel === id}
+                    className={deskPanel === id ? 'active' : ''}
+                    onClick={() => setDeskPanel(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {deskPanel === 'log' ? log : rollTable}
             </div>
             <div className="desk-market">{market}</div>
             <div className="desk-me">
@@ -220,6 +242,7 @@ export function GameScreen(props: Props) {
                   onPick={setDetail}
                 />
               )}
+              {tab === 'rolls' && rollTable}
               {tab === 'log' && <div className="felt-dark">{log}</div>}
             </div>
           </>
