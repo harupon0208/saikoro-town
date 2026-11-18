@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5240">
+<title>港の拡張ルール｜サイコロタウン</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+  /* レイアウト：ゲームの卓（緑のフェルト）の上に、生成り色のカードを1列に並べる。スマホ1列が基本 */
+  :root {
+    --felt: #1f5240;
+    --felt-dark: #163a2d;
+    --panel: #f6efdf;
+    --card: #fffdf7;
+    --ink: #2b2118;
+    --muted: #6f604f;
+    --gold: #e3b23c;
+    --gold-edge: #9a6f12;
+    --on-felt: #f6efdf;
+    --on-felt-muted: #b4cabd;
+    --line: #e2d5bb;
+    --sea: #2a7db8;
+    --c-blue: #2563c9;
+    --c-green: #1f7a45;
+    --c-red: #c23b3b;
+    --c-purple: #6e44b8;
+    --font: 'Zen Maru Gothic', system-ui, 'Hiragino Maru Gothic ProN', 'Yu Gothic UI', sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(120% 60% at 50% 0%, #2a6650 0%, var(--felt) 45%, var(--felt-dark) 100%) fixed, var(--felt);
+    color: var(--on-felt);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.75;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-top: max(20px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(48px, env(safe-area-inset-bottom, 0px));
+  }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 18px; }
+
+  header.top { text-align: center; padding-block: 8px 4px; }
+  .back {
+    justify-self: start;
+    color: var(--on-felt);
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .back:hover, .back:focus-visible { background: rgba(227, 178, 60, 0.25); outline: none; }
+  footer a { color: var(--gold); }
+  .eyebrow { font-size: 0.8rem; letter-spacing: 0.2em; color: var(--gold); font-weight: 700; }
+  h1 {
+    margin: 4px 0 6px;
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1.3;
+    color: var(--gold);
+    text-wrap: balance;
+  }
+  .lead { margin: 0 auto; max-width: 30em; color: var(--on-felt-muted); font-weight: 500; }
+
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  nav.toc a {
+    color: var(--on-felt);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(227, 178, 60, 0.55);
+  }
+  nav.toc a:focus-visible, nav.toc a:hover { background: rgba(227, 178, 60, 0.18); outline: none; }
+
+  section.panel {
+    background: var(--panel);
+    color: var(--ink);
+    border-radius: 14px;
+    padding: 18px 16px 20px;
+    box-shadow: inset 0 0 0 1px rgba(154, 111, 18, 0.35), 0 6px 18px rgba(0, 0, 0, 0.25);
+    min-width: 0;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 1.25rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-wrap: balance;
+  }
+  h2 .mark {
+    flex: none;
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    background: var(--felt);
+    color: var(--gold);
+    font-size: 0.95rem;
+  }
+  h3 { margin: 14px 0 6px; font-size: 1.02rem; font-weight: 900; }
+  p { margin: 0 0 8px; }
+  .muted { color: var(--muted); font-size: 0.88rem; }
+  b.key { background: linear-gradient(transparent 60%, rgba(227, 178, 60, 0.45) 60%); }
+
+  /* 3つの変化 */
+  .changes { display: grid; gap: 10px; margin-top: 6px; }
+  .change {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 10px;
+    align-items: start;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .change .big { font-size: 1.6rem; text-align: center; line-height: 1.2; }
+  .change b { display: block; }
+  .change span { font-size: 0.9rem; color: var(--muted); }
+
+  /* ランドマーク */
+  .lm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .lm {
+    background: var(--card);
+    border: 2px solid var(--gold-edge);
+    border-radius: 12px;
+    padding: 12px;
+    min-width: 0;
+  }
+  .lm .head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .lm .name { font-size: 1.15rem; font-weight: 900; }
+  .lm .cost {
+    font-weight: 900;
+    background: var(--gold);
+    border-radius: 999px;
+    padding: 0 10px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lm p { margin: 6px 0 0; }
+
+  /* 港のサイコロ例 */
+  .dice-demo {
+    margin-top: 10px;
+    background: var(--felt);
+    color: var(--on-felt);
+    border-radius: 12px;
+    padding: 12px;
+    display: grid;
+    gap: 8px;
+  }
+  .dice-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .die {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: #fffdf7;
+    color: var(--ink);
+    display: grid; place-items: center;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.12);
+  }
+  .arrow { color: var(--gold); font-weight: 900; }
+  .total { font-size: 1.4rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .total.plus { color: var(--gold); }
+  .choice-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .fake-btn {
+    font: inherit;
+    font-weight: 900;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--ink);
+  }
+  .fake-btn.gold { background: var(--gold); }
+
+  /* 施設カード */
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 12px; }
+  .filters button {
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.82rem;
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 2px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--felt); border-color: var(--felt); color: var(--on-felt); }
+  .filters button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .cards { display: grid; gap: 10px; }
+  .card {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 10px;
+    background: var(--card);
+    border-radius: 12px;
+    border: 2px solid var(--line);
+    border-left-width: 6px;
+    padding: 10px 12px;
+    min-width: 0;
+  }
+  .card.blue { border-left-color: var(--c-blue); }
+  .card.green { border-left-color: var(--c-green); }
+  .card.red { border-left-color: var(--c-red); }
+  .card.purple { border-left-color: var(--c-purple); }
+  .card .emoji { font-size: 2rem; text-align: center; line-height: 1.2; }
+  .card .body { min-width: 0; }
+  .card .row1 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .card .name { font-weight: 900; font-size: 1.05rem; margin-right: auto; }
+  .tag {
+    font-size: 0.72rem;
+    font-weight: 900;
+    padding: 1px 8px;
+    border-radius: 6px;
+    color: #fff;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .tag.roll { background: var(--ink); }
+  .tag.cost { background: var(--gold); color: var(--ink); }
+  .tag.blue { background: var(--c-blue); }
+  .tag.green { background: var(--c-green); }
+  .tag.red { background: var(--c-red); }
+  .tag.purple { background: var(--c-purple); }
+  .card .eff { margin: 6px 0 0; }
+  .card .note { margin: 4px 0 0; font-size: 0.82rem; color: var(--muted); }
+  .needs-harbor {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 0.75rem;
+    font-weight: 900;
+    color: var(--sea);
+  }
+
+  /* 色の意味 */
+  .legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .legend div { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+
+  /* 市場 */
+  .steps { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 4px; }
+  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+  .mode { background: var(--card); border-radius: 10px; padding: 10px 12px; border: 2px solid var(--line); }
+  .mode.default { border-color: var(--gold-edge); }
+  .mode b { display: block; }
+
+  /* 順番 */
+  .order { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; counter-reset: o; }
+  .order li {
+    counter-increment: o;
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+  .order li::before {
+    content: counter(o);
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--felt);
+    color: var(--gold);
+    font-weight: 900;
+    font-size: 0.85rem;
+  }
+
+  .tips { display: grid; gap: 8px; margin: 6px 0 0; padding: 0; list-style: none; }
+  .tips li { background: var(--card); border-radius: 10px; padding: 10px 12px; }
+
+  footer { text-align: center; color: var(--on-felt-muted); font-size: 0.8rem; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+</style>
+
+</head>
+<body>
+<main>
+  <a class="back" href="../">← サイコロタウンで遊ぶ</a>
+  <header class="top">
+    <div class="eyebrow">サイコロタウン 追加ルール</div>
+    <h1>⚓ 港の拡張</h1>
+    <p class="lead">海のある街を育てる拡張です。開始画面の「バージョン」で「港の拡張」を選ぶと遊べます。</p>
+  </header>
+
+  <nav class="toc" aria-label="もくじ">
+    <a href="#changes">何が変わる？</a>
+    <a href="#landmarks">ランドマーク</a>
+    <a href="#cards">新しい施設</a>
+    <a href="#market">市場</a>
+    <a href="#order">手番の流れ</a>
+    <a href="#tips">コツ</a>
+  </nav>
+
+  <section class="panel" id="changes">
+    <h2><span class="mark">!</span>基本のゲームから変わること</h2>
+    <div class="changes">
+      <div class="change">
+        <div class="big">🏆</div>
+        <div><b>勝つにはランドマーク6つ</b><span>基本の4つ（駅・モール・遊園地・電波塔）に、港と空港が加わります。</span></div>
+      </div>
+      <div class="change">
+        <div class="big">🃏</div>
+        <div><b>施設が10種類増える</b><span>全部で25種類。港がないと働かないカードもあります。</span></div>
+      </div>
+      <div class="change">
+        <div class="big">🏪</div>
+        <div><b>市場の並べ方を選べる</b><span>「10種類だけ並べる」と「全種類並べる」。10種類だと毎回ちがう市場になります。</span></div>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:10px">「建設のときに0コインなら1コインもらえる」ルールは、どのバージョンでも有効です。</p>
+  </section>
+
+  <section class="panel" id="landmarks">
+    <h2><span class="mark">⚓</span>新しいランドマーク</h2>
+    <div class="lm-grid">
+      <div class="lm">
+        <div class="head"><span class="name">⚓ 港</span><span class="cost">2コイン</span></div>
+        <p>サイコロの合計が<b class="key">10以上</b>なら、<b class="key">2を足してもよい</b>。</p>
+        <p class="muted">足すかどうかは毎回自分で選べます。12〜14の目が出せるようになります。</p>
+      </div>
+      <div class="lm">
+        <div class="head"><span class="name">✈️ 空港</span><span class="cost">30コイン</span></div>
+        <p>自分の番に<b class="key">何も建てなかった</b>ら、銀行から<b class="key">10コイン</b>。</p>
+        <p class="muted">いちばん高いランドマーク。建てたあとは「あえて買わない」作戦が使えます。</p>
+      </div>
+    </div>
+
+    <h3>港の使い方</h3>
+    <div class="dice-demo" aria-label="港の例">
+      <div class="dice-row">
+        <span class="die">5</span><span class="die">5</span>
+        <span class="arrow">→</span>
+        <span class="total">10</span>
+        <span class="arrow">→ ⚓+2 →</span>
+        <span class="total plus">12</span>
+      </div>
+      <div class="choice-btns" aria-hidden="true">
+        <span class="fake-btn">10のまま</span>
+        <span class="fake-btn gold">+2して12にする</span>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:8px">電波塔も持っているときは、先に「振り直すか」を決めてから、港の+2を選びます。遊園地のゾロ目はサイコロの目で決まるので、+2しても変わりません。</p>
+  </section>
+
+  <section class="panel" id="cards">
+    <h2><span class="mark">🃏</span>新しい施設（10種類）</h2>
+    <div class="legend" aria-label="色の意味">
+      <div><span class="tag blue">青</span>誰の番でも</div>
+      <div><span class="tag green">緑</span>自分の番だけ</div>
+      <div><span class="tag red">赤</span>相手の番（振った人から）</div>
+      <div><span class="tag purple">紫</span>自分の番・1人1枚まで</div>
+    </div>
+
+    <div class="filters" role="group" aria-label="色でしぼりこむ" style="margin-top:12px">
+      <button type="button" id="f-all" data-f="all" aria-pressed="true">すべて</button>
+      <button type="button" id="f-blue" data-f="blue" aria-pressed="false">青</button>
+      <button type="button" id="f-green" data-f="green" aria-pressed="false">緑</button>
+      <button type="button" id="f-red" data-f="red" aria-pressed="false">赤</button>
+      <button type="button" id="f-purple" data-f="purple" aria-pressed="false">紫</button>
+      <button type="button" id="f-harbor" data-f="harbor" aria-pressed="false">⚓ 港が必要</button>
+    </div>
+
+    <div class="cards" id="card-list">
+      <article class="card red" data-color="red" data-harbor="1">
+        <div class="emoji">🍣</div>
+        <div class="body">
+          <div class="row1"><span class="name">寿司屋</span><span class="tag red">赤</span><span class="tag roll">目 1</span><span class="tag cost">4コイン</span></div>
+          <p class="eff">相手が1を出したら、振った人から<b>3コイン</b>。</p>
+          <span class="needs-harbor">⚓ 港を持っていないと働かない</span>
+          <p class="note">☕のカードなので、モールがあれば4コイン。</p>
+        </div>
+      </article>
+
+      <article class="card blue" data-color="blue">
+        <div class="emoji">🌷</div>
+        <div class="body">
+          <div class="row1"><span class="name">花畑</span><span class="tag blue">青</span><span class="tag roll">目 4</span><span class="tag cost">2コイン</span></div>
+          <p class="eff">誰の番でも、銀行から<b>1コイン</b>。</p>
+          <p class="note">🌾のカードなので、青果市場で数えられます。</p>
+        </div>
+      </article>
+
+      <article class="card green" data-color="green">
+        <div class="emoji">💐</div>
+        <div class="body">
+          <div class="row1"><span class="name">花屋</span><span class="tag green">緑</span><span class="tag roll">目 6</span><span class="tag cost">1コイン</span></div>
+          <p class="eff">自分の番に、自分の<b>花畑の枚数 × 1コイン</b>。</p>
+          <p class="note">🏪のカードなので、モールがあれば花畑1枚につき2コイン。</p>
+        </div>
+      </article>
+
+      <article class="card red" data-color="red">
+        <div class="emoji">🍕</div>
+        <div class="body">
+          <div class="row1"><span class="name">ピザ屋</span><span class="tag red">赤</span><span class="tag roll">目 7</span><span class="tag cost">1コイン</span></div>
+          <p class="eff">相手が7を出したら、振った人から<b>1コイン</b>。</p>
+          <p class="note">2個振りでいちばん出やすい7で働きます。</p>
+        </div>
+      </article>
+
+      <article class="card purple" data-color="purple">
+        <div class="emoji">📚</div>
+        <div class="body">
+          <div class="row1"><span class="name">出版社</span><span class="tag purple">紫</span><span class="tag roll">目 7</span><span class="tag cost">5コイン</span></div>
+          <p class="eff">自分の番に、相手全員から<b>☕と🏪のカード1枚につき1コイン</b>ずつ。</p>
+          <p class="note">パン屋・コンビニ・カフェ・ピザ屋などを持っている相手ほどたくさん取れます。</p>
+        </div>
+      </article>
+
+      <article class="card blue" data-color="blue" data-harbor="1">
+        <div class="emoji">🐟</div>
+        <div class="body">
+          <div class="row1"><span class="name">サバ漁船</span><span class="tag blue">青</span><span class="tag roll">目 8</span><span class="tag cost">2コイン</span></div>
+          <p class="eff">誰の番でも、銀行から<b>3コイン</b>。</p>
+          <span class="needs-harbor">⚓ 港を持っていないと働かない</span>
+        </div>
+      </article>
+
+      <article class="card red" data-color="red">
+        <div class="emoji">🍔</div>
+        <div class="body">
+          <div class="row1"><span class="name">ハンバーガー屋</span><span class="tag red">赤</span><span class="tag roll">目 8</span><span class="tag cost">1コイン</span></div>
+          <p class="eff">相手が8を出したら、振った人から<b>1コイン</b>。</p>
+        </div>
+      </article>
+
+      <article class="card purple" data-color="purple">
+        <div class="emoji">🏛️</div>
+        <div class="body">
+          <div class="row1"><span class="name">税務署</span><span class="tag purple">紫</span><span class="tag roll">目 8–9</span><span class="tag cost">4コイン</span></div>
+          <p class="eff">自分の番に、<b>10コイン以上</b>持っている相手全員から<b>半分</b>（切り捨て）。</p>
+          <p class="note">例：相手が11コインなら5コインもらう。9コイン以下の人からは取らない。</p>
+        </div>
+      </article>
+
+      <article class="card green" data-color="green">
+        <div class="emoji">📦</div>
+        <div class="body">
+          <div class="row1"><span class="name">食品倉庫</span><span class="tag green">緑</span><span class="tag roll">目 12–13</span><span class="tag cost">2コイン</span></div>
+          <p class="eff">自分の番に、自分の<b>☕のカードの枚数 × 2コイン</b>。</p>
+          <p class="note">12と13は港の+2があると出しやすくなります。</p>
+        </div>
+      </article>
+
+      <article class="card blue" data-color="blue" data-harbor="1">
+        <div class="emoji">🚢</div>
+        <div class="body">
+          <div class="row1"><span class="name">マグロ漁船</span><span class="tag blue">青</span><span class="tag roll">目 12–14</span><span class="tag cost">5コイン</span></div>
+          <p class="eff">誰の番でも、手番の人が<b>サイコロ2個</b>を振り、<b>その合計 × 枚数</b>のコインを銀行から。</p>
+          <span class="needs-harbor">⚓ 港を持っていないと働かない</span>
+          <p class="note">サイコロは1回だけ振り、持っている人全員が同じ目を使います。13と14は港の+2でしか出ません。</p>
+        </div>
+      </article>
+    </div>
+    <p class="muted" id="empty-note" hidden>この条件のカードはありません。</p>
+  </section>
+
+  <section class="panel" id="market">
+    <h2><span class="mark">🏪</span>市場の並べ方</h2>
+    <p>港の拡張を選ぶと、市場の並べ方を2つから選べます。</p>
+    <div class="modes">
+      <div class="mode default">
+        <b>10種類だけ（最初はこちら）</b>
+        <ol class="steps">
+          <li>全部のカードを混ぜて山札にする</li>
+          <li>違う種類が10になるまで引いて並べる（同じ種類は重ねる）</li>
+          <li>どれかが売り切れたら、また10種類になるまで引き足す</li>
+        </ol>
+        <p class="muted" style="margin-top:6px">市場の見出しに山札の残り枚数が出ます。毎回ちがう展開になります。</p>
+      </div>
+      <div class="mode">
+        <b>全種類</b>
+        <p style="margin-top:6px">25種類すべてを並べます。基本のゲームと同じやり方です。</p>
+        <p class="muted">選べるカードが多いので、じっくり考えたい人向け。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="order">
+    <h2><span class="mark">🎲</span>手番の流れ</h2>
+    <ol class="order">
+      <li><div><b>サイコロを振る</b><br><span class="muted">駅があれば1個か2個を選べる。</span></div></li>
+      <li><div><b>振り直すか決める</b><br><span class="muted">電波塔があるときだけ。</span></div></li>
+      <li><div><b>港で+2するか決める</b><br><span class="muted">港があって、合計が10以上のときだけ。</span></div></li>
+      <li><div><b>収入</b><br><span class="muted">赤 → 青・緑 → 紫 の順に働く。マグロ漁船はここでサイコロを振る。</span></div></li>
+      <li><div><b>建設</b><br><span class="muted">0コインならまず1コインもらえる。何も建てなければ、空港で10コイン。</span></div></li>
+      <li><div><b>ゾロ目なら、もう1回</b><br><span class="muted">遊園地があるときだけ。</span></div></li>
+    </ol>
+  </section>
+
+  <section class="panel" id="tips">
+    <h2><span class="mark">💡</span>遊ぶときのコツ</h2>
+    <ul class="tips">
+      <li><b>港は2コインと安い。</b>早めに建てると、寿司屋・サバ漁船・マグロ漁船が働くようになります。</li>
+      <li><b>税務署に注意。</b>10コイン以上ためていると半分取られることがあります。大きな買い物の前は特に気をつけて。</li>
+      <li><b>空港は終盤の切り札。</b>欲しいカードがない手番でも10コイン入るので、最後のランドマークまでの貯金が早くなります。</li>
+      <li><b>ゲームは長めになります。</b>ランドマークが6つなので、基本より時間がかかります。</li>
+    </ul>
+  </section>
+
+  <footer>サイコロタウン・港の拡張　ルールのまとめ<br><a href="../">サイコロタウンを開く</a></footer>
+</main>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('.filters button');
+    var cards = document.querySelectorAll('#card-list .card');
+    var empty = document.getElementById('empty-note');
+    function apply(f) {
+      var shown = 0;
+      cards.forEach(function (c) {
+        var ok = f === 'all' || (f === 'harbor' ? c.dataset.harbor === '1' : c.dataset.color === f);
+        c.hidden = !ok;
+        if (ok) shown++;
+      });
+      empty.hidden = shown > 0;
+      buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.f === f)); });
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { apply(b.dataset.f); });
+    });
+  })();
+</script>
+
+</body>
+</html>

@@ -1346,3 +1346,14 @@ main.start input {
   font-weight: 700;
   font-size: 0.9rem;
 }
+.rules-link {
+  color: var(--felt);
+  font-weight: 900;
+  text-decoration: underline;
+}
+.btn.rules-btn {
+  display: block;
+  margin-top: 18px;
+  text-align: center;
+  text-decoration: none;
+}

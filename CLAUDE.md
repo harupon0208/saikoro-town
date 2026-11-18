@@ -44,6 +44,7 @@
   - 開始画面とオンラインの部屋のバージョン選択は `src/ui/OptionsPicker.tsx`。部屋の設定は `room` メッセージで友達に届く
   - テスト：`src/game/harbor.test.ts`（各カード・港・空港・市場・CPU同士120ゲーム）、`timeline.test.ts` の再生一致、`e2e/harbor.spec.ts`
   - CPU は港・空港も建て、港の+2は「コインが増えるなら足す」。強さの調整はしていない
+  - ルール説明ページ：`public/rules/harbor.html`（React を使わない1枚のHTML。公開サイトの /saikoro-town/rules/harbor.html）。開始画面の「ルールを見る」と、港の拡張のゲーム中の ⚙ から開く
 - ルールは元の基本セットと照合済み（2026-11-18 に外部資料で再確認：カード15種・ランドマーク・処理順・赤は逆回り・払えない分は免除・紫は1人1枚・同じカードは枚数ぶん発動）。解釈で決めた点：電波塔の振り直しは同じ個数で、振り直した目を必ず使う（カード15種の色・目・コスト・収入・在庫、ランドマーク4種、処理順、モールの対象、払えない時の扱い）
 - 公開済み：https://harupon0208.github.io/saikoro-town/ （リポジトリ harupon0208/saikoro-town。`main` に push すると自動でテスト→ビルド→公開。コミットの作者は harupon0208 と noreply アドレス）
 - スマホ（同じWi-Fi）で試すときは開発サーバーを `npx vite --port 5173 --strictPort --host` で起動する

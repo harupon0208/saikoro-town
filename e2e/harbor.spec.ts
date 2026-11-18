@@ -38,6 +38,20 @@ test.describe('港の拡張', () => {
     await expect(page.getByTestId('deck-count')).toContainText('山札');
   });
 
+  test('開始画面の「ルールを見る」で、港の拡張の説明ページが開く（サイトに置いてあるページ）', async ({ page, context }) => {
+    await open(page, { speed: 'none' });
+    await page.getByRole('radio', { name: '⚓ 港の拡張' }).click();
+    const [rules] = await Promise.all([context.waitForEvent('page'), page.getByRole('link', { name: 'ルールを見る' }).click()]);
+    await expect(rules).toHaveTitle('港の拡張ルール｜サイコロタウン');
+    await expect(rules.getByRole('heading', { name: '⚓ 港の拡張' })).toBeVisible();
+    // 色でしぼりこめる
+    await rules.getByRole('button', { name: '⚓ 港が必要' }).click();
+    await expect(rules.locator('#card-list .card:visible')).toHaveCount(3);
+    // 横にはみ出さない
+    const overflow = await rules.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
   test('基本を選んだときは今までどおり（ランドマーク4つ・市場15種類）', async ({ page }) => {
     await open(page, { speed: 'none' });
     await page.getByRole('button', { name: 'スタート' }).click();

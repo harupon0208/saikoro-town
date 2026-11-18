@@ -13,6 +13,7 @@ import { type CardId, Coins, type Fx, LandmarkDots, LogList, Market, Rivals, Tow
 import { Sheet } from './components/Sheet';
 import { COLOR_NAMES, incomeFormula, rollsLabel } from './labels';
 import type { Settings } from './settings';
+import { HARBOR_RULES_URL } from './OptionsPicker';
 import { playSound } from './sound/synth';
 import { useMediaQuery } from './useMediaQuery';
 
@@ -266,6 +267,7 @@ export function GameScreen(props: Props) {
 
       {showSettings && (
         <SettingsSheet
+          harbor={!!game.options?.expansions.includes('harbor')}
           settings={settings}
           onChange={onSettings}
           onClose={() => setShowSettings(false)}
@@ -593,7 +595,9 @@ function SettingsSheet({
   onChange,
   onClose,
   onLeaveRoom,
+  harbor,
 }: {
+  harbor: boolean;
   settings: Settings;
   onChange: (s: Settings) => void;
   onClose: () => void;
@@ -650,6 +654,11 @@ function SettingsSheet({
           onPointerUp={() => playSound('coin')}
         />
       </label>
+      {harbor && (
+        <a className="btn wide rules-btn" href={HARBOR_RULES_URL} target="_blank" rel="noopener">
+          ⚓ 港の拡張のルールを見る
+        </a>
+      )}
       {onLeaveRoom && (
         <button
           className="btn wide leave-room"
