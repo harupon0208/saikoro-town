@@ -1,0 +1,217 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { chooseCpuAction } from '../game/ai';
+import { applyAction, isValidAction } from '../game/engine';
+import { clearSave, getDefaultStorage, loadGame, saveGame } from '../game/save';
+import { createGame } from '../game/state';
+import type { Action, FacilityId, GameConfig, GameEvent, GameState, LandmarkId } from '../game/types';
+import { type Step, accumulateRollEvents, buildSteps, viewAt } from './anim/timeline';
+import { GameScreen } from './GameScreen';
+import { type Settings, cpuDelayMs, cpuPickMs, effectiveSpeed, loadSettings, saveSettings } from './settings';
+import { StartScreen } from './StartScreen';
+import { LAND_AT } from './components/Die';
+import { cuesForEvents, cuesForStep } from './sound/cues';
+import { installUnlock, playCues, playSound, setSound } from './sound/synth';
+import { useMediaQuery } from './useMediaQuery';
+
+const storage = getDefaultStorage();
+const rng = Math.random;
+
+/** 開発中の自動テスト用：?cpuDelay=0 で CPU の間を変えられる（本番ビルドでは無効） */
+const DEV_CPU_DELAY = (() => {
+  if (!import.meta.env.DEV) return null;
+  const v = new URLSearchParams(location.search).get('cpuDelay');
+  return v === null ? null : Number(v);
+})();
+
+/** CPU が建てようとしているカード（建てる前に指し示す） */
+export interface CpuPick {
+  playerId: number;
+  id: FacilityId | LandmarkId;
+}
+
+interface Playback {
+  from: GameState;
+  to: GameState;
+  steps: Step[];
+  index: number;
+  /** コマごとに変わる番号（ポップアップなどの key 用） */
+  serial: number;
+}
+
+export function App() {
+  const [saved, setSaved] = useState<GameState | null>(() => loadGame(storage));
+  const [game, setGame] = useState<GameState | null>(null);
+  const [rollEvents, setRollEvents] = useState<GameEvent[]>([]);
+  const [playback, setPlaybackState] = useState<Playback | null>(null);
+  const [cpuPick, setCpuPick] = useState<CpuPick | null>(null);
+  const [settings, setSettingsState] = useState<Settings>(() => loadSettings(storage));
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const speed = effectiveSpeed(settings.speed, reducedMotion);
+
+  // コールバックの中から最新の値を読むための ref
+  const gameRef = useRef<GameState | null>(null);
+  const playbackRef = useRef<Playback | null>(null);
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+  const serialRef = useRef(0);
+
+  const update = (s: GameState | null) => {
+    gameRef.current = s;
+    setGame(s);
+  };
+  const setPlayback = (p: Playback | null) => {
+    playbackRef.current = p;
+    setPlaybackState(p);
+  };
+
+  const dispatch = useCallback((action: Action) => {
+    const cur = gameRef.current;
+    // 再生中は操作を受け付けない
+    if (!cur || playbackRef.current || !isValidAction(cur, action)) return;
+    const { state: next, events } = applyAction(cur, action, rng);
+    // 状態はすぐ確定して保存する（再生中に閉じても保存は正しい）
+    if (next.phase === 'gameOver') clearSave(storage);
+    else saveGame(storage, next);
+    update(next);
+
+    const steps = buildSteps(events, speedRef.current);
+    if (steps.length === 0) {
+      playCues(cuesForEvents(events, next));
+      setRollEvents((prev) => accumulateRollEvents(prev, events));
+    } else {
+      setPlayback({ from: cur, to: next, steps, index: 0, serial: ++serialRef.current });
+      setRollEvents((prev) => accumulateRollEvents(prev, steps[0].events));
+    }
+  }, []);
+
+  /** 次のコマへ（画面タップで飛ばすときも使う） */
+  const advance = useCallback(() => {
+    const p = playbackRef.current;
+    if (!p) return;
+    const index = p.index + 1;
+    if (index >= p.steps.length) {
+      setPlayback(null);
+    } else {
+      setPlayback({ ...p, index, serial: ++serialRef.current });
+      setRollEvents((prev) => accumulateRollEvents(prev, p.steps[index].events));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!playback) return;
+    const t = setTimeout(advance, playback.steps[playback.index].ms);
+    return () => clearTimeout(t);
+  }, [playback, advance]);
+
+  // --- 効果音 ---
+  // 最初のタップで音を使えるようにする／設定を反映する
+  useEffect(() => installUnlock(), []);
+  useEffect(() => setSound(settings.sound, settings.volume), [settings.sound, settings.volume]);
+  // コマが始まったら、そのコマの音を予約する（自然に次のコマへ進むときは余韻を切らない）
+  const stopSounds = useRef<() => void>(() => {});
+  const serial = playback?.serial;
+  useEffect(() => {
+    const p = playbackRef.current;
+    if (!p) return;
+    stopSounds.current = playCues(cuesForStep(p.steps[p.index], p.to, LAND_AT));
+  }, [serial]);
+  // 演出を飛ばしたら、まだ鳴っていない音も止める
+  const skip = useCallback(() => {
+    stopSounds.current();
+    advance();
+  }, [advance]);
+  // ボタンを押したときの小さな音
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element | null)?.closest?.('button:not(:disabled)')) playSound('click');
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
+  useEffect(() => {
+    if (cpuPick) playSound('pick');
+  }, [cpuPick]);
+
+  // CPU の手番は、再生が終わってから少し間を置いて進める（保存から再開したときも途中から続く）
+  // 建てるカードを決めたら、少しのあいだ市場のそのカードを指し示してから建てる
+  useEffect(() => {
+    if (!game || playback || game.phase === 'gameOver' || game.players[game.current].isHuman) return;
+    let t2: ReturnType<typeof setTimeout> | undefined;
+    const t = setTimeout(() => {
+      const cur = gameRef.current;
+      if (!cur || playbackRef.current || cur.phase === 'gameOver' || cur.players[cur.current].isHuman) return;
+      const action = chooseCpuAction(cur);
+      const pickMs = cpuPickMs(speed);
+      if (action.type === 'BUILD' && action.id && pickMs > 0 && DEV_CPU_DELAY === null) {
+        setCpuPick({ playerId: action.playerId, id: action.id });
+        t2 = setTimeout(() => {
+          setCpuPick(null);
+          dispatch(action);
+        }, pickMs);
+      } else {
+        dispatch(action);
+      }
+    }, DEV_CPU_DELAY ?? cpuDelayMs(speed));
+    return () => {
+      clearTimeout(t);
+      clearTimeout(t2);
+      setCpuPick(null);
+    };
+  }, [game, playback, speed, dispatch]);
+
+  const changeSettings = (s: Settings) => {
+    setSettingsState(s);
+    saveSettings(storage, s);
+  };
+
+  const begin = (s: GameState) => {
+    setPlayback(null);
+    setRollEvents([]);
+    update(s);
+  };
+
+  const startNew = (config: GameConfig) => {
+    clearSave(storage);
+    const s = createGame(config, rng);
+    saveGame(storage, s);
+    setSaved(null);
+    begin(s);
+  };
+
+  if (!game) {
+    return (
+      <StartScreen
+        hasSave={saved !== null}
+        onContinue={() => saved && begin(saved)}
+        onDiscardSave={() => {
+          clearSave(storage);
+          setSaved(null);
+        }}
+        onStart={startNew}
+      />
+    );
+  }
+
+  const view = playback ? viewAt(playback.from, playback.to, playback.steps, playback.index) : game;
+  const step = playback ? playback.steps[playback.index] : null;
+
+  return (
+    <GameScreen
+      game={view}
+      step={step}
+      stepKey={playback ? playback.serial : 0}
+      speed={speed}
+      rollEvents={rollEvents}
+      cpuPick={cpuPick}
+      dispatch={dispatch}
+      onSkip={skip}
+      settings={settings}
+      onSettings={changeSettings}
+      onExit={() => {
+        stopSounds.current();
+        setPlayback(null);
+        update(null);
+      }}
+    />
+  );
+}

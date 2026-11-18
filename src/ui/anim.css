@@ -1,0 +1,989 @@
+/* 演出の追加：立体サイコロ・山なりのコイン・ランドマーク完成・画面の動き
+   app.css の後に読み込み、古いサイコロ・コインの見た目を上書きする */
+
+/* --- フェルトの質感 --- */
+.table {
+  background-color: var(--felt);
+  background-image:
+    radial-gradient(ellipse at 50% 20%, rgba(255, 255, 255, 0.07), transparent 60%),
+    radial-gradient(ellipse at 50% 120%, rgba(0, 0, 0, 0.35), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 4px);
+}
+
+/* --- 立体サイコロ --- */
+.dice-panel {
+  overflow: hidden;
+  position: relative;
+}
+.dice {
+  gap: 14px;
+  perspective: 600px;
+  min-height: 64px;
+  align-items: center;
+}
+.die {
+  --size: 54px;
+  --half: 27px;
+  position: relative;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  transform-style: preserve-3d;
+}
+.desktop .die {
+  --size: 70px;
+  --half: 35px;
+  width: var(--size);
+  height: var(--size);
+}
+.die.empty {
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px dashed rgba(255, 255, 255, 0.18);
+}
+.cube {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  place-items: center;
+  padding: 16%;
+  border-radius: 18%;
+  background: radial-gradient(circle at 30% 25%, #ffffff, #f1ece2 70%, #ddd5c6);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+    inset -3px -4px 8px rgba(0, 0, 0, 0.12);
+  backface-visibility: hidden;
+}
+.face img {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.face .pip {
+  width: 72%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #4a4a4a, #111 70%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.face .pip.red {
+  width: 95%;
+  background: radial-gradient(circle at 35% 30%, #ff6b5e, #b81f1f 70%);
+}
+.die-shadow {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: -10px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  filter: blur(4px);
+}
+/* 投げ込み：奥から飛んできて、2回跳ねて止まる */
+.die.rolling {
+  animation-name: throw;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+@keyframes throw {
+  0% {
+    transform: translate(var(--throw-x), var(--throw-y)) scale(0.55);
+    animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1);
+  }
+  42% {
+    transform: translate(calc(var(--throw-x) * 0.25), 0) scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  58% {
+    transform: translate(calc(var(--throw-x) * 0.12), -18px) scale(1.03);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6);
+  }
+  72% {
+    transform: translate(calc(var(--throw-x) * 0.05), 0) scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  82% {
+    transform: translate(calc(var(--throw-x) * 0.02), -5px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.6);
+  }
+  90%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* 出目の合計がポンと出る。ゾロ目は金色の札 */
+.total-pop {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  animation: pop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.doubles {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.dice-result li {
+  animation: slide-in 0.35s ease-out both;
+}
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- コインが山なりに飛ぶ（外側が横、内側が縦） --- */
+.fly {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  opacity: 1;
+  background: none;
+  border: none;
+  box-shadow: none;
+  animation-name: fly-x;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  animation-fill-mode: both;
+}
+.fly-y {
+  display: block;
+  animation-name: fly-y;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes fly-x {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  10%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(var(--dx));
+    opacity: 0;
+  }
+}
+@keyframes fly-y {
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1);
+  }
+  45% {
+    transform: translateY(calc(var(--dy) * 0.45 + var(--arc)));
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4);
+  }
+  100% {
+    transform: translateY(var(--dy));
+  }
+}
+.fly-coin-face {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff1b8, var(--gold) 55%, #b88a1c);
+  border: 2px solid var(--gold-edge);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+  animation: coin-spin 0.35s linear infinite;
+}
+@keyframes coin-spin {
+  0%,
+  100% {
+    transform: scaleX(1);
+  }
+  50% {
+    transform: scaleX(0.2);
+  }
+}
+.fly-card-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 66px;
+  margin: -33px 0 0 -26px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 3px solid;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  animation: card-tumble 0.5s ease-in-out both;
+}
+.fly-card-face .card-art {
+  width: 100%;
+  height: 40px;
+  background: none;
+}
+@keyframes card-tumble {
+  0% {
+    transform: scale(1) rotate(0);
+  }
+  40% {
+    transform: scale(1.35) rotate(-8deg);
+  }
+  100% {
+    transform: scale(0.5) rotate(6deg);
+  }
+}
+
+/* --- コインが届いたときの輪 --- */
+.coin-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  pointer-events: none;
+  animation: ring 0.6s ease-out 0.25s both;
+}
+@keyframes ring {
+  from {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* --- 市場の残り枚数 --- */
+.art-wrap {
+  position: relative;
+  display: block;
+}
+.stock {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: rgba(43, 33, 24, 0.72);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.5;
+  animation: stock-flash 0.6s ease-out;
+}
+.stock.low {
+  background: #b0611a;
+}
+.stock.out {
+  background: var(--red);
+}
+@keyframes stock-flash {
+  0% {
+    transform: scale(1.5);
+    background: var(--gold);
+    color: var(--ink);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* --- ランドマーク完成：光の筋とキラキラ --- */
+.landmark-burst {
+  position: fixed;
+  inset: 0;
+  z-index: 17;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(24, 63, 49, 0.55), rgba(0, 0, 0, 0.55));
+  animation: fade-in-out ease both;
+}
+.burst-rays {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 223, 128, 0.35) 0 10deg, transparent 10deg 20deg);
+  mask-image: radial-gradient(circle, #000 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 70%);
+  animation: rays linear both;
+}
+.burst-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 190px;
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #fff6d6, var(--gold));
+  border: 3px solid var(--gold-edge);
+  color: var(--ink);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: card-flip cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.burst-card .card-art.large {
+  width: 100%;
+  height: 90px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.4);
+}
+.burst-card {
+  width: auto;
+  min-width: 200px;
+  max-width: calc(100vw - 32px);
+}
+.burst-card b {
+  font-size: 1.25rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+/* --- 収入の行にカードの絵 --- */
+.dice-result li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  column-gap: 6px;
+  align-items: center;
+}
+.dice-result li .card-art {
+  grid-row: span 2;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+.dice-result li .card-emoji {
+  font-size: 18px;
+}
+
+/* --- 発動したカードの絵が持ち主の上にポンと出る --- */
+.trigger-bubble {
+  position: fixed;
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin: -46px 0 0 -17px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  animation: bubble ease-out both;
+}
+.trigger-bubble.side {
+  margin-top: -17px;
+}
+.trigger-bubble .card-art {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  background: none;
+}
+.trigger-bubble .card-emoji {
+  font-size: 18px;
+}
+@keyframes bubble {
+  0% {
+    transform: translateY(10px) scale(0.2);
+    opacity: 0;
+  }
+  25% {
+    transform: translateY(0) scale(1.15);
+    opacity: 1;
+  }
+  40%,
+  80% {
+    transform: translateY(-4px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-14px) scale(0.9);
+    opacity: 0;
+  }
+}
+.c-blue.trigger-bubble {
+  border-color: var(--blue);
+}
+.c-green.trigger-bubble {
+  border-color: var(--green);
+}
+.c-red.trigger-bubble {
+  border-color: var(--red);
+}
+.c-purple.trigger-bubble {
+  border-color: var(--purple);
+}
+@media (prefers-reduced-motion: reduce) {
+  .trigger-bubble {
+    display: none;
+  }
+}
+.burst-card span {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.sparkles span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px;
+  background: #fff3c4;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: sparkle-out 0.9s ease-out both;
+}
+@keyframes sparkle-out {
+  0% {
+    transform: translate(0, 0) scale(0.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(1.4) rotate(180deg);
+    opacity: 0;
+  }
+}
+@keyframes rays {
+  from {
+    transform: rotate(0) scale(0.6);
+  }
+  to {
+    transform: rotate(60deg) scale(1.1);
+  }
+}
+@keyframes card-flip {
+  0% {
+    transform: perspective(600px) rotateY(90deg) scale(0.6);
+  }
+  35% {
+    transform: perspective(600px) rotateY(0) scale(1.05);
+  }
+  45%,
+  100% {
+    transform: perspective(600px) rotateY(0) scale(1);
+  }
+}
+@keyframes fade-in-out {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* --- 手番の帯：自分の番は金色で大きく --- */
+.banner {
+  overflow: hidden;
+}
+.banner-text {
+  display: inline-block;
+  letter-spacing: 0.1em;
+}
+.banner.mine {
+  background: linear-gradient(90deg, #b88a1c, var(--gold) 30%, #fff1b8 50%, var(--gold) 70%, #b88a1c);
+  color: var(--ink);
+  border-color: var(--gold-edge);
+  font-size: 1.8rem;
+}
+.banner.mine .banner-text {
+  animation: banner-bounce 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 0.15s both;
+}
+@keyframes banner-bounce {
+  from {
+    transform: scale(0.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* --- 紙吹雪：揺れながら落ちる --- */
+.confetti span {
+  animation-name: fall-sway;
+}
+@keyframes fall-sway {
+  0% {
+    top: -20px;
+    transform: translateX(0) rotate(0);
+  }
+  50% {
+    transform: translateX(var(--sway)) rotate(calc(var(--spin) / 2));
+  }
+  100% {
+    top: 105%;
+    transform: translateX(calc(var(--sway) * -0.5)) rotate(var(--spin));
+  }
+}
+
+/* --- 画面の動き --- */
+.tab-body > * {
+  animation: rise 0.3s ease-out both;
+}
+/* カードは出てくるときだけ下からせり上がる。
+   光る・薄くなるでアニメーション名を変えると最初からやり直してしまうので、名前は変えない */
+.card,
+.card.glow,
+.card.dim {
+  animation: card-in 0.35s ease-out backwards;
+  animation-delay: calc(var(--order, 0) * 25ms);
+  transition:
+    transform 0.12s,
+    box-shadow 0.2s,
+    opacity 0.3s,
+    filter 0.3s;
+}
+.card.glow .art-wrap {
+  animation: glow-bump 0.6s ease-out;
+}
+@keyframes card-in {
+  from {
+    transform: translateY(12px) scale(0.96);
+  }
+}
+@keyframes glow-bump {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.18) translateY(-3px);
+  }
+}
+@media (hover: hover) {
+  .card:not(.dim):hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.btn {
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
+}
+/* 自分の番の金色ボタンは光がすっと流れる */
+.prompt .btn.gold {
+  background-image: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: shimmer 2.2s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  60%,
+  100% {
+    background-position: -120% 0;
+  }
+}
+.dice-panel.my-turn {
+  animation: turn-glow 2s ease-in-out infinite;
+}
+@keyframes turn-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(227, 178, 60, 0);
+  }
+  50% {
+    box-shadow: 0 0 18px 2px rgba(227, 178, 60, 0.45);
+  }
+}
+.rival-mini,
+.rival,
+.my-bar {
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s,
+    border-color 0.3s;
+}
+.rival-mini.turn {
+  transform: translateY(-3px);
+}
+
+.sheet-backdrop {
+  animation: backdrop 0.2s ease-out;
+}
+.sheet {
+  animation: sheet-up 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.05);
+}
+@keyframes backdrop {
+  from {
+    background: rgba(0, 0, 0, 0);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+.detail .card-art.large {
+  animation: pop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.log-list li {
+  animation: slide-in 0.3s ease-out;
+}
+.gameover li {
+  animation: rise 0.4s ease-out both;
+}
+.gameover li:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.gameover li:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.gameover li:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.gameover .crown {
+  animation: crown 1.2s ease-in-out infinite;
+}
+@keyframes crown {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(4deg);
+  }
+}
+.lm-tile.buyable {
+  animation: buyable 1.4s ease-in-out infinite;
+}
+.lm-tile.sparkle {
+  animation: sparkle 0.8s ease-out;
+}
+@keyframes buyable {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(227, 178, 60, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(227, 178, 60, 0.7);
+  }
+}
+
+/* 開始画面 */
+main.start h1 {
+  animation: title-bounce 2.4s ease-in-out infinite;
+}
+main.start .panel {
+  animation: rise 0.4s ease-out both;
+}
+@keyframes title-bounce {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+  }
+  80% {
+    transform: translateY(-8px) rotate(-2deg);
+  }
+  90% {
+    transform: translateY(0) rotate(1deg);
+  }
+}
+
+/* タイトルの上で2つのサイコロがゆっくり回る */
+.title-dice {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 18px;
+  perspective: 500px;
+}
+.title-dice .die {
+  animation: idle-spin 7s linear infinite;
+}
+.title-dice .die:nth-child(2) {
+  animation-duration: 9s;
+  animation-direction: reverse;
+}
+@keyframes idle-spin {
+  from {
+    transform: rotateX(-18deg) rotateY(0);
+  }
+  to {
+    transform: rotateX(-18deg) rotateY(360deg);
+  }
+}
+
+/* 設定で「なし」：飾りの動きも止める */
+.speed-none *,
+.speed-none *::before,
+.speed-none *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* 端末の「視差効果を減らす」：動きは止めて、色の変化だけ残す */
+@media (prefers-reduced-motion: reduce) {
+  .fly-layer,
+  .confetti,
+  .sparkles,
+  .burst-rays,
+  .coin-ring {
+    display: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-name: none !important;
+    transition: none !important;
+  }
+  .popup,
+  .landmark-burst {
+    animation-name: fade-in-out !important;
+  }
+}
+
+/* ポップアップは出番（コインが届く頃）まで隠しておく */
+.popup {
+  animation-fill-mode: both;
+}
+
+/* 相手の欄（画面の上の方）では、「+1」がヘッダーに隠れないよう数字の下に出す */
+.rival .popup,
+.rival-mini .popup {
+  bottom: auto;
+  top: 100%;
+}
+
+/* 再生中の「ハルがパン屋を建てた」 */
+.caption {
+  display: inline-block;
+  font-weight: 700;
+  animation: caption-in 0.3s ease-out both;
+}
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- CPU が考えている（点が順に跳ねる／サイコロを手の中で転がす） --- */
+.thinking-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 2px;
+}
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: dot-hop 0.9s ease-in-out infinite;
+}
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes dot-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+.dice-panel.thinking .die:not(.rolling) {
+  animation: die-wobble 0.7s ease-in-out infinite;
+}
+@keyframes die-wobble {
+  0%,
+  100% {
+    transform: rotate(-6deg) translateY(0);
+  }
+  50% {
+    transform: rotate(6deg) translateY(-4px);
+  }
+}
+
+/* --- CPU が建てるカードを指し示す --- */
+.card.cpu-pick {
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  filter: none;
+  /* アニメーション名を変えると登場の動きがやり直しになるので、transform の変化で持ち上げる */
+  transform: scale(1.07) translateY(-4px);
+  transition:
+    transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1),
+    box-shadow 0.2s;
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 10px 24px rgba(0, 0, 0, 0.4);
+}
+.card.cpu-pick::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  border: 3px dashed var(--gold);
+  pointer-events: none;
+  animation: pick-ring 1s ease-in-out infinite;
+}
+@keyframes pick-ring {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+.pick-tag {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  z-index: 3;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%);
+  animation: tag-drop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1) 0.1s both;
+}
+@keyframes tag-drop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+.pick-caption {
+  color: var(--gold);
+}
+
+/* --- 手番が回ってきた人の欄がぴょんと跳ねる --- */
+.rival.turn,
+.rival-mini.turn {
+  animation: turn-hop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+@keyframes turn-hop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.05) translateY(-3px);
+  }
+  /* 終わりは指定しない（その欄のもとの位置に戻る） */
+}
+@media (prefers-reduced-motion: reduce) {
+  .dots i,
+  .dice-panel.thinking .die:not(.rolling),
+  .card.cpu-pick,
+  .card.cpu-pick::after,
+  .rival.turn,
+  .rival-mini.turn {
+    animation: none;
+  }
+  .card.cpu-pick {
+    transform: none;
+  }
+}
+
+/* --- 設定：音量 --- */
+.volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  min-height: 44px;
+}
+.volume.off {
+  opacity: 0.45;
+}
+.volume input {
+  flex: 1;
+  height: 44px;
+  accent-color: var(--gold-edge);
+}
