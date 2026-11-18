@@ -22,6 +22,9 @@ export function stepCaption(step: Step | null, game: GameState): string {
         return `${name(e.a)}と${name(e.b)}がカードを交換`;
       case 'CARD_TRIGGERED':
         return `${name(e.playerId)}の${FACILITIES[e.cardId].name}が発動！`;
+      case 'COINS_MOVED':
+        if (e.support && e.to !== 'bank') return `${name(e.to)}は0コインなので1コインもらった`;
+        break;
       case 'EXTRA_TURN':
         return 'ゾロ目でもう1回！';
       case 'TURN_STARTED':

@@ -8,7 +8,7 @@ import type { FacilityId, GameEvent, GameState } from '../../game/types';
 
 export type Speed = 'normal' | 'fast' | 'none';
 
-export type StepKind = 'dice' | 'income' | 'swap' | 'build' | 'extraTurn' | 'turn' | 'win';
+export type StepKind = 'dice' | 'income' | 'support' | 'swap' | 'build' | 'extraTurn' | 'turn' | 'win';
 
 export interface Step {
   kind: StepKind;
@@ -25,6 +25,7 @@ export interface Step {
 export const BASE_MS: Record<StepKind, number> = {
   dice: 1900, // 立体のサイコロが投げ込まれて転がり、出た目を読む間まで
   income: 1300, // カードが光る → コインが飛ぶ → 数字が増える、を順に見せる
+  support: 1300, // 0コインのとき銀行から1コイン
   swap: 1400,
   build: 1200,
   extraTurn: 1500,
@@ -77,8 +78,9 @@ export function buildSteps(events: GameEvent[], speed: Speed): Step[] {
       case 'DICE_ROLLED':
         push('dice', e);
         break;
-      case 'COINS_MOVED': // 建設の支払い。続く BUILT と同じコマにする
-        push('build', e);
+      case 'COINS_MOVED':
+        // 0コインでもらう1コイン / 建設の支払い（続く BUILT と同じコマにする）
+        push(e.support ? 'support' : 'build', e);
         break;
       case 'BUILT':
       case 'LANDMARK_COMPLETED':

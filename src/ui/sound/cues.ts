@@ -66,6 +66,9 @@ export function cuesForStep(step: Step, game: GameState, landAt: number, mine?: 
       }
       break;
     }
+    case 'support':
+      cues.push({ name: 'coin', at: t.arrive });
+      break;
     case 'swap':
       cues.push({ name: 'swap', at: 0 });
       break;

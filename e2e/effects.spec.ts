@@ -198,3 +198,18 @@ test.describe('演出', () => {
     expect(await btn.evaluate((e) => getComputedStyle(e).animationName)).toBe('none');
   });
 });
+
+test.describe('0コインの救済', () => {
+  test('建設のときに0コインなら、銀行から1コインが飛んできて一言出る', async ({ page }) => {
+    const save = makeState(SEATS, (s) => {
+      s.current = 0;
+      s.players[0].coins = 0;
+    });
+    await open(page, { speed: 'normal', fixedRandom: 0.99, save }); // サイコロは 6 → 何も発動しない
+    await page.getByRole('button', { name: '続きから' }).click();
+    await page.getByRole('button', { name: '1個振る' }).click();
+    await expect(page.getByTestId('caption')).toHaveText('あなたは0コインなので1コインもらった', { timeout: 8000 });
+    await expect(page.getByRole('button', { name: '何も買わない' })).toBeVisible({ timeout: 8000 });
+    await expect(page.getByTestId('coins-0')).toContainText('1');
+  });
+});

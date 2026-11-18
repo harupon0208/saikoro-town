@@ -407,6 +407,34 @@ describe('サイコロ・ランドマーク', () => {
     expect(r.state.phase).toBe('build');
   });
 
+  it('建設のときに0コインなら、銀行から1コインもらう', () => {
+    const s = newGame(2);
+    s.players[0].coins = 0;
+    const r = roll(s, 6); // 6 は何も発動しない
+    expect(r.state.phase).toBe('build');
+    expect(r.state.players[0].coins).toBe(1);
+    expect(r.events).toContainEqual({ type: 'COINS_MOVED', from: 'bank', to: 0, amount: 1, support: true });
+  });
+
+  it('赤カードで全部取られて0コインになっても、建設のときに1コインもらう', () => {
+    const s = newGame(2);
+    s.players[0].coins = 1;
+    s.players[1].cards.cafe = 1;
+    const r = roll(s, 3);
+    expect(r.state.players[1].coins).toBe(4);
+    expect(r.state.players[0].coins).toBe(1);
+  });
+
+  it('1コイン以上あればもらえない。相手の手番でももらえない', () => {
+    const s = newGame(2);
+    s.players[0].coins = 2;
+    s.players[1].coins = 0;
+    const r = roll(s, 6);
+    expect(r.state.players[0].coins).toBe(2);
+    expect(r.state.players[1].coins).toBe(0);
+    expect(r.events.some((e) => e.type === 'COINS_MOVED' && e.support)).toBe(false);
+  });
+
   it('遊園地：2個振りゾロ目で追加手番', () => {
     const s = newGame(2);
     s.players[0].landmarks.station = true;
@@ -424,6 +452,16 @@ describe('サイコロ・ランドマーク', () => {
     s.players[0].landmarks.station = true;
     s.players[0].landmarks.park = true;
     const r = act(roll(s, 3, 4).state, { type: 'BUILD', playerId: 0, id: null });
+    expect(r.state.current).toBe(1);
+  });
+
+  it('遊園地：ゾロ目の手番に遊園地を建てても、その手番は追加手番なし（次からは有効）', () => {
+    const s = newGame(2);
+    s.players[0].landmarks.station = true;
+    s.players[0].coins = 16;
+    const r = act(roll(s, 3, 3).state, { type: 'BUILD', playerId: 0, id: 'park' });
+    expect(r.state.players[0].landmarks.park).toBe(true);
+    expect(r.events.some((e) => e.type === 'EXTRA_TURN')).toBe(false);
     expect(r.state.current).toBe(1);
   });
 

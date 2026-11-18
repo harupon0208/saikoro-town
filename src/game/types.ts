@@ -108,6 +108,8 @@ export type GameEvent =
       to: number | 'bank';
       amount: number;
       cardId?: FacilityId | LandmarkId;
+      /** 建設のときに0コインだったのでもらった1コイン */
+      support?: true;
     }
   | { type: 'CARDS_SWAPPED'; a: number; b: number; aCard: FacilityId; bCard: FacilityId }
   | { type: 'BUILT'; playerId: number; id: FacilityId | LandmarkId }

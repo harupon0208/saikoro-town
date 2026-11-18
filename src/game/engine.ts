@@ -179,7 +179,19 @@ function runPurple(ctx: Ctx, from: PurpleStage): void {
   }
 
   delete s.pendingChoice;
+  enterBuild(ctx);
+}
+
+/** 建設フェーズへ。このとき0コインなら、銀行から1コインもらう */
+function enterBuild(ctx: Ctx): void {
+  const s = ctx.s;
   s.phase = 'build';
+  const p = s.players[s.current];
+  if (p.coins === 0) {
+    p.coins = 1;
+    ctx.ev.push({ type: 'COINS_MOVED', from: 'bank', to: p.id, amount: 1, support: true });
+    log(ctx, `${p.name}は0コインなので1コインもらった`);
+  }
 }
 
 function doTv(ctx: Ctx, target: number): void {
@@ -241,13 +253,14 @@ function doBuild(ctx: Ctx, id: FacilityId | LandmarkId | null): void {
     log(ctx, `${p.name}が${cardName(id)}を建てた`);
   }
 
-  endTurn(ctx);
+  // この手番で建てた遊園地は、この手番のゾロ目には効かない（振ったときに持っていたかで決める）
+  endTurn(ctx, id === 'park');
 }
 
-function endTurn(ctx: Ctx): void {
+function endTurn(ctx: Ctx, parkBuiltNow: boolean): void {
   const s = ctx.s;
   const p = s.players[s.current];
-  if (p.landmarks.park && s.dice.length === 2 && s.dice[0] === s.dice[1]) {
+  if (p.landmarks.park && !parkBuiltNow && s.dice.length === 2 && s.dice[0] === s.dice[1]) {
     ctx.ev.push({ type: 'EXTRA_TURN', playerId: s.current });
     log(ctx, `ゾロ目！${p.name}はもう1回`);
     startTurn(ctx, s.current);
@@ -354,13 +367,13 @@ export function applyAction(state: GameState, action: Action, rng: Rng): ActionR
         `${me.name}が${target.name}と交換：${cardName(action.give)} ⇄ ${cardName(action.take)}`,
       );
       delete s.pendingChoice;
-      s.phase = 'build';
+      enterBuild(ctx);
       break;
     }
     case 'SKIP_SWAP':
       log(ctx, `${s.players[s.current].name}は交換しなかった`);
       delete s.pendingChoice;
-      s.phase = 'build';
+      enterBuild(ctx);
       break;
     case 'BUILD':
       doBuild(ctx, action.id);
