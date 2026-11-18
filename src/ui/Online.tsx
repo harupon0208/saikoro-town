@@ -2,7 +2,9 @@
 import { useState } from 'react';
 import { MAX_PLAYERS, MIN_PLAYERS, isRoomCode } from '../net/lobby';
 import type { RoomMember } from '../net/protocol';
+import type { GameOptions } from '../game/types';
 import { Ambience } from './anim/Effects';
+import { OptionsPicker, optionsLabel } from './OptionsPicker';
 
 export function inviteUrl(code: string): string {
   return `${location.origin}${location.pathname}?room=${code}`;
@@ -78,13 +80,15 @@ export function HostLobby(props: {
   error: string | null;
   members: RoomMember[];
   count: number;
+  options: GameOptions;
   name: string;
   onName: (name: string) => void;
   onCount: (n: number) => void;
+  onOptions: (o: GameOptions) => void;
   onStart: () => void;
   onCancel: () => void;
 }) {
-  const { code, error, members, count, name, onName, onCount, onStart, onCancel } = props;
+  const { code, error, members, count, options, name, onName, onCount, onOptions, onStart, onCancel } = props;
   const min = Math.max(MIN_PLAYERS, members.length);
   return (
     <Frame title="部屋を作る">
@@ -122,6 +126,7 @@ export function HostLobby(props: {
               ))}
             </div>
             <p className="note">友達で埋まらない席は CPU が入ります。</p>
+            <OptionsPicker value={options} onChange={onOptions} />
             <button className="primary big" onClick={onStart}>
               スタート
             </button>
@@ -189,6 +194,7 @@ export function GuestLobby(props: {
   code: string;
   members: RoomMember[];
   count: number;
+  options: GameOptions | null;
   onLeave: () => void;
 }) {
   return (
@@ -199,6 +205,11 @@ export function GuestLobby(props: {
           <Members members={props.members} count={props.count} />
         ) : (
           <p className="waiting-text">部屋の様子を受け取っています…</p>
+        )}
+        {props.options && (
+          <p className="room-options" data-testid="room-options">
+            バージョン：{optionsLabel(props.options)}
+          </p>
         )}
         <p className="waiting-text" data-testid="guest-waiting">
           ホストがスタートするのを待っています

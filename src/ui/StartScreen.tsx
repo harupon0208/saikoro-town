@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import type { GameConfig, SeatConfig } from '../game/types';
+import type { GameConfig, GameOptions, SeatConfig } from '../game/types';
 import { Ambience } from './anim/Effects';
 import { Die } from './components/Die';
+import { DEFAULT_OPTIONS, OptionsPicker } from './OptionsPicker';
 
 interface Props {
   hasSave: boolean;
@@ -25,6 +26,7 @@ const DEFAULT_SEATS: SeatConfig[] = [
 export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart, onHostRoom, onJoinRoom }: Props) {
   const [count, setCount] = useState(4);
   const [seats, setSeats] = useState<SeatConfig[]>(DEFAULT_SEATS);
+  const [options, setOptions] = useState<GameOptions>(DEFAULT_OPTIONS);
 
   const setSeat = (i: number, patch: Partial<SeatConfig>) =>
     setSeats((prev) => prev.map((s, j) => (j === i ? { ...s, ...patch } : s)));
@@ -35,6 +37,7 @@ export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart, onHos
         name: s.name.trim() || `プレイヤー${i + 1}`,
         isHuman: s.isHuman,
       })),
+      ...(options.expansions.length > 0 ? { options } : {}),
     });
   };
 
@@ -99,6 +102,8 @@ export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart, onHos
             </div>
           ))}
           <p className="note">手番の順番はスタート時にランダムで決まります。</p>
+
+          <OptionsPicker value={options} onChange={setOptions} />
 
           <button className="primary big" onClick={start}>
             スタート

@@ -1,4 +1,4 @@
-import { FACILITIES, FACILITY_IDS, LANDMARKS, LANDMARK_IDS } from '../../game/cards';
+import { FACILITIES, FACILITY_IDS, LANDMARKS, byRoll, facilityIdsFor, optionsOf, playerLandmarks } from '../../game/cards';
 import type { FacilityId, GameState, LandmarkId, Player } from '../../game/types';
 import { CoinPopup, CountUp } from '../anim/Effects';
 import { type Step, coinDeltas, coinTiming } from '../anim/timeline';
@@ -93,7 +93,14 @@ export function Legend() {
   );
 }
 
-/** 市場（施設15種類） */
+/** 市場に出すカード：全種類を並べる（売り切れも出す）／10種類だけ並べる（並んでいるものだけ） */
+export function marketIds(game: GameState): FacilityId[] {
+  const options = optionsOf(game);
+  const ids = facilityIdsFor(options);
+  return (options.market === 'ten' ? ids.filter((id) => game.supply[id] > 0) : ids).sort(byRoll);
+}
+
+/** 市場 */
 export function Market({
   game,
   viewer,
@@ -109,11 +116,18 @@ export function Market({
   return (
     <section className="market" aria-label="市場">
       <div className="section-head">
-        <h2>市場</h2>
+        <h2>
+          市場
+          {game.deck && (
+            <small className="deck-count" data-testid="deck-count">
+              山札 {game.deck.length}枚
+            </small>
+          )}
+        </h2>
         <Legend />
       </div>
       <div className="card-grid">
-        {FACILITY_IDS.map((id) => {
+        {marketIds(game).map((id, i) => {
           const c = FACILITIES[id];
           const soldOut = game.supply[id] <= 0;
           const ownedPurple = c.color === 'purple' && viewer.cards[id] > 0;
@@ -125,7 +139,7 @@ export function Market({
               dim={soldOut || ownedPurple || viewer.coins < c.cost}
               anchor={`market-${id}`}
               stock={game.supply[id]}
-              order={FACILITY_IDS.indexOf(id)}
+              order={i}
               pickedBy={pick?.id === id ? game.players[pick.playerId].name : undefined}
               onClick={() => onPick(id)}
             />
@@ -138,7 +152,7 @@ export function Market({
 
 /** 自分の街：持っている施設とランドマーク */
 export function Town({ player, fx, onPick }: { player: Player; fx: Fx; onPick: (id: CardId) => void }) {
-  const owned = FACILITY_IDS.filter((id) => player.cards[id] > 0);
+  const owned = FACILITY_IDS.filter((id) => player.cards[id] > 0).sort(byRoll);
   return (
     <section className="town" aria-label={`${player.name}の街`}>
       <div className="section-head">
@@ -159,7 +173,7 @@ export function Town({ player, fx, onPick }: { player: Player; fx: Fx; onPick: (
       </div>
       <h3>ランドマーク</h3>
       <ul className="lm-list">
-        {LANDMARK_IDS.map((id) => (
+        {playerLandmarks(player).map((id) => (
           <li key={id} className={player.landmarks[id] ? 'built' : ''}>
             <button onClick={() => onPick(id)}>
               <CardArt id={id} className="small" />
@@ -174,14 +188,12 @@ export function Town({ player, fx, onPick }: { player: Player; fx: Fx; onPick: (
   );
 }
 
-/** ランドマーク4つの■□表示 */
+/** ランドマークの■□表示 */
 export function LandmarkDots({ player, fx }: { player: Player; fx?: Fx }) {
+  const ids = playerLandmarks(player);
   return (
-    <span
-      className="lm-dots"
-      aria-label={`ランドマーク ${LANDMARK_IDS.filter((id) => player.landmarks[id]).length}/4`}
-    >
-      {LANDMARK_IDS.map((id) => (
+    <span className="lm-dots" aria-label={`ランドマーク ${ids.filter((id) => player.landmarks[id]).length}/${ids.length}`}>
+      {ids.map((id) => (
         <span
           key={id}
           className={`${player.landmarks[id] ? 'on' : ''}${fx?.sparkle.has(`${player.id}:${id}`) ? ' sparkle' : ''}`}
@@ -239,7 +251,7 @@ export function Rivals({
             {anchors ? <Coins player={p} fx={fx} /> : <span>{p.coins} c</span>}
           </div>
           <div className="rival-lms">
-            {LANDMARK_IDS.map((id) => (
+            {playerLandmarks(p).map((id) => (
               <span
                 key={id}
                 className={`${p.landmarks[id] ? 'on' : ''}${fx.sparkle.has(`${p.id}:${id}`) ? ' sparkle' : ''}`}
@@ -249,7 +261,9 @@ export function Rivals({
             ))}
           </div>
           <div className="chips">
-            {FACILITY_IDS.filter((id) => p.cards[id] > 0).map((id) => (
+            {FACILITY_IDS.filter((id) => p.cards[id] > 0)
+              .sort(byRoll)
+              .map((id) => (
               <button
                 key={id}
                 className={`chip c-${FACILITIES[id].color}${fx.glow.has(`${p.id}:${id}`) ? ' glow' : ''}`}

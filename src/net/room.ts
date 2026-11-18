@@ -1,5 +1,5 @@
 // 部屋の進行役。ホスト側（HostRoom）と友達側（GuestRoom）。React には依存しない
-import type { Action, GameEvent, GameState, Rng } from '../game/types';
+import type { Action, GameEvent, GameOptions, GameState, Rng } from '../game/types';
 import {
   HOST_ID,
   MAX_PLAYERS,
@@ -27,6 +27,8 @@ interface GuestConn {
 export class HostRoom {
   members: Member[];
   count = 4;
+  /** 遊ぶバージョン（ホストが選ぶ） */
+  options: GameOptions = { expansions: [], market: 'all' };
   started = false;
   private game: GameState | null = null;
   private conns = new Map<string, GuestConn>();
@@ -81,6 +83,13 @@ export class HostRoom {
   setCount(n: number) {
     if (this.started) return;
     this.count = Math.min(MAX_PLAYERS, Math.max(minCount(this.members), n));
+    this.sendRoom();
+    this.onChange();
+  }
+
+  setOptions(options: GameOptions) {
+    if (this.started) return;
+    this.options = options;
     this.sendRoom();
     this.onChange();
   }
@@ -173,7 +182,7 @@ export class HostRoom {
 
   private sendRoom() {
     const members: RoomMember[] = this.members.map((m) => ({ name: m.name, connected: m.connected }));
-    this.broadcast({ t: 'room', code: this.code, members, count: this.count });
+    this.broadcast({ t: 'room', code: this.code, members, count: this.count, options: this.options });
   }
 
   private broadcast(msg: ToGuest) {
@@ -186,7 +195,7 @@ export class HostRoom {
 export type GuestStatus = 'lobby' | 'game' | 'lost' | 'closed';
 
 export interface GuestHandlers {
-  onRoom: (members: RoomMember[], count: number) => void;
+  onRoom: (members: RoomMember[], count: number, options: GameOptions) => void;
   onState: (state: GameState, events: GameEvent[], offline: number[]) => void;
   onPresence: (offline: number[]) => void;
   onPick: (pick: Pick | null) => void;
@@ -260,7 +269,7 @@ export class GuestRoom {
         this.link.send({ t: 'pong' });
         break;
       case 'room':
-        this.h.onRoom(msg.members, msg.count);
+        this.h.onRoom(msg.members, msg.count, msg.options);
         break;
       case 'state':
         this.h.onState(msg.state, msg.events, msg.offline);

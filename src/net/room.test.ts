@@ -48,7 +48,7 @@ function handlers(): GuestHandlers & { states: GameState[]; log: string[] } {
   return {
     states,
     log,
-    onRoom: (m, c) => log.push('room:' + m.map((x) => x.name).join(',') + ':' + c),
+    onRoom: (m, c, o) => log.push('room:' + m.map((x) => x.name).join(',') + ':' + c + ':' + o.expansions.join('+')),
     onState: (s) => states.push(s),
     onPresence: (o) => log.push('presence:' + o.join(',')),
     onPick: () => log.push('pick'),
@@ -73,7 +73,10 @@ describe('オンラインの部屋', () => {
     const a = await GuestRoom.join(net, room.code, 'ca', 'アキ', ha);
     await flush();
     expect(room.members.map((m) => m.name)).toEqual(['ホスト', 'アキ']);
-    expect(ha.log).toContain('room:ホスト,アキ:4');
+    expect(ha.log).toContain('room:ホスト,アキ:4:');
+    room.setOptions({ expansions: ['harbor'], market: 'ten' });
+    await flush();
+    expect(ha.log).toContain('room:ホスト,アキ:4:harbor');
 
     room.setCount(3);
     const s = createGame({ seats: seatsFor(room.members, room.count, ['ハル']) }, () => 0.5);

@@ -1,5 +1,6 @@
-import { FACILITIES, FACILITY_IDS } from './cards';
-import type { FacilityId, GameConfig, GameState, Personality, Player, Rng } from './types';
+import { BASE_OPTIONS, FACILITY_IDS, facilityIdsFor, landmarkIdsFor } from './cards';
+import { makeDeck, refill, stockOf } from './market';
+import type { FacilityId, GameConfig, GameState, LandmarkId, Personality, Player, Rng } from './types';
 
 export const PERSONALITIES: Personality[] = ['steady', 'ranchFactory', 'resourceFactory', 'balanced'];
 
@@ -14,6 +15,8 @@ export function createGame(config: GameConfig, rng: Rng): GameState {
   const n = config.seats.length;
   if (n < 2 || n > 4) throw new Error('プレイ人数は2〜4人です');
 
+  const options = config.options ?? BASE_OPTIONS;
+  const landmarkIds = landmarkIdsFor(options);
   const seats = [...config.seats];
   for (let i = seats.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
@@ -30,23 +33,29 @@ export function createGame(config: GameConfig, rng: Rng): GameState {
       isHuman: seat.isHuman,
       coins: 3,
       cards,
-      landmarks: { station: false, mall: false, park: false, tower: false },
+      landmarks: Object.fromEntries(landmarkIds.map((id) => [id, false])) as Partial<Record<LandmarkId, boolean>>,
     };
     if (seat.owner !== undefined) p.owner = seat.owner;
     if (!seat.isHuman) p.personality = PERSONALITIES[Math.floor(rng() * PERSONALITIES.length)];
     return p;
   });
 
+  // 市場：全種類を並べる／山札から10種類だけ並べる
+  const inGame = new Set(facilityIdsFor(options));
   const supply = Object.fromEntries(
-    FACILITY_IDS.map((id) => {
-      const stock = FACILITIES[id].stock;
-      return [id, stock === 'players' ? n : stock];
-    }),
+    FACILITY_IDS.map((id) => [id, options.market === 'all' && inGame.has(id) ? stockOf(id, n) : 0]),
   ) as Record<FacilityId, number>;
+  let deck: FacilityId[] | undefined;
+  if (options.market === 'ten') {
+    deck = makeDeck(options, n, rng);
+    refill(supply, deck);
+  }
 
   return {
     players,
     supply,
+    ...(config.options ? { options } : {}),
+    ...(deck ? { deck } : {}),
     current: 0,
     phase: 'chooseDice',
     dice: [],

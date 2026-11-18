@@ -157,6 +157,27 @@ test.describe('オンライン対戦', () => {
     await expect(g.getByRole('button', { name: '部屋に入る' })).toBeVisible();
   });
 
+  test('ホストが選んだバージョン（港の拡張）が友達にも伝わり、そのルールで始まる', async ({ context }) => {
+    const host = await openTab(context, { fixedRandom: 0 });
+    const guest = await openTab(context);
+    const h = host.page;
+    const g = guest.page;
+    await createRoom(h);
+    await joinRoom(g, 'アキ');
+    await expect(h.getByTestId('members')).toContainText('アキ');
+    await h.getByRole('radio', { name: '⚓ 港の拡張' }).click();
+    await expect(g.getByTestId('room-options')).toHaveText('バージョン：港の拡張・市場10種類');
+    await h.getByRole('radio', { name: '全種類' }).click();
+    await expect(g.getByTestId('room-options')).toHaveText('バージョン：港の拡張・市場全種類');
+    await h.getByRole('button', { name: '2人' }).click();
+    await h.getByRole('button', { name: 'スタート' }).click();
+    await expect(g.locator('.my-bar [data-landmark="airport"]')).toBeVisible();
+    await expect(h.locator('.my-bar [data-landmark="harbor"]')).toBeVisible();
+    await expect(g.locator('.market [data-card="sushi"]')).toBeVisible();
+    expect(host.errors).toEqual([]);
+    expect(guest.errors).toEqual([]);
+  });
+
   test('招待リンクで開くと部屋コードが入っている', async ({ context }) => {
     const guest = await openTab(context, { query: '&room=4321' });
     await expect(guest.page.getByLabel('部屋コード')).toHaveValue('4321');

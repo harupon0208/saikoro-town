@@ -92,6 +92,20 @@ describe('途中保存', () => {
     expect(loadGame(storage)).toEqual(fresh);
   });
 
+  it('港の拡張を入れる前の保存データ（拡張の施設がない）も、そのまま続きから遊べる', () => {
+    const old = JSON.parse(serialize(newGame(2)));
+    for (const p of old.state.players) {
+      delete p.cards.sushi;
+      delete p.cards.tuna;
+    }
+    delete old.state.supply.sushi;
+    const loaded = deserialize(JSON.stringify(old));
+    expect(loaded).not.toBeNull();
+    expect(loaded!.players[0].cards.sushi).toBe(0);
+    expect(loaded!.supply.sushi).toBe(0);
+    expect(Object.keys(loaded!.players[0].landmarks)).toHaveLength(4);
+  });
+
   it('保存がなければ null', () => {
     expect(loadGame(new MemoryStorage())).toBeNull();
   });

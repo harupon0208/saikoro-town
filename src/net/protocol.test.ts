@@ -19,7 +19,10 @@ describe('メッセージの確認', () => {
     const ok = parseToGuest(JSON.parse(JSON.stringify({ t: 'state', state, events: [], offline: [] })));
     expect(ok?.t).toBe('state');
     expect(parseToGuest({ t: 'state', state: { ...state, players: 'x' }, events: [], offline: [] })).toBeNull();
-    expect(parseToGuest({ t: 'room', code: '1234', members: [{ name: 'A', connected: true }], count: 3 })).not.toBeNull();
+    const room = { t: 'room', code: '1234', members: [{ name: 'A', connected: true }], count: 3 };
+    expect(parseToGuest({ ...room, options: { expansions: ['harbor'], market: 'ten' } })).not.toBeNull();
+    expect(parseToGuest({ ...room, options: { expansions: ['moon'], market: 'ten' } })).toBeNull();
+    expect(parseToGuest(room)).toBeNull();
     expect(parseToGuest({ t: 'pick', pick: null })).toEqual({ t: 'pick', pick: null });
     expect(parseToGuest({ t: 'nope' })).toBeNull();
   });

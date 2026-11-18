@@ -1308,3 +1308,41 @@ main.start input {
   font-size: 1.4rem;
   font-weight: 900;
 }
+
+/* --- 港の拡張 ------------------------------------------------------------ */
+/* ランドマークが6つのときは少し詰める */
+.my-bar.lm6 {
+  gap: 4px;
+}
+.my-bar.lm6 .my-coins {
+  min-width: 52px;
+  font-size: 1.35rem;
+}
+.my-bar.lm6 .lm-tile {
+  min-height: 46px;
+  padding: 3px 1px;
+}
+.my-bar.lm6 .lm-tile b {
+  font-size: 0.7rem;
+}
+.my-bar.lm6 .lm-tile small {
+  font-size: 0.62rem;
+}
+.harbor-plus {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #8fd3ff;
+  letter-spacing: 0;
+}
+.deck-count {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+.room-options {
+  margin-top: 12px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}

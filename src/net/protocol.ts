@@ -1,6 +1,6 @@
 // ホストと友達の端末のあいだでやりとりするメッセージ。届いたものは必ず形を確かめてから使う
-import { isGameState } from '../game/save';
-import type { Action, FacilityId, GameEvent, GameState, LandmarkId } from '../game/types';
+import { fillNewCards, isGameState } from '../game/save';
+import type { Action, FacilityId, GameEvent, GameOptions, GameState, LandmarkId } from '../game/types';
 
 export interface RoomMember {
   name: string;
@@ -21,7 +21,7 @@ export type ToHost =
 /** ホスト → 友達 */
 export type ToGuest =
   /** 部屋の様子（始まる前）。members[0] がホスト */
-  | { t: 'room'; code: string; members: RoomMember[]; count: number }
+  | { t: 'room'; code: string; members: RoomMember[]; count: number; options: GameOptions }
   /** ゲームの状態と、そこに至るイベント（入り直したときは events が空） */
   | { t: 'state'; state: GameState; events: GameEvent[]; offline: number[] }
   /** 通信が切れている人の席 */
@@ -39,7 +39,7 @@ const isInt = (x: unknown): x is number => typeof x === 'number' && Number.isInt
 const isStr = (x: unknown): x is string => typeof x === 'string';
 const isIntList = (x: unknown): x is number[] => Array.isArray(x) && x.every(isInt);
 
-const ACTION_TYPES = ['CHOOSE_DICE', 'REROLL', 'KEEP', 'CHOOSE_TARGET', 'SWAP', 'SKIP_SWAP', 'BUILD'];
+const ACTION_TYPES = ['CHOOSE_DICE', 'REROLL', 'KEEP', 'HARBOR', 'CHOOSE_TARGET', 'SWAP', 'SKIP_SWAP', 'BUILD'];
 
 function isAction(x: unknown): x is Action {
   // 中身の正しさは isValidAction が確かめる。ここでは形だけ
@@ -62,6 +62,15 @@ export function parseToHost(x: unknown): ToHost | null {
   }
 }
 
+function isOptions(x: unknown): x is GameOptions {
+  return (
+    isObj(x) &&
+    Array.isArray(x.expansions) &&
+    x.expansions.every((e) => e === 'harbor') &&
+    (x.market === 'all' || x.market === 'ten')
+  );
+}
+
 function isMember(x: unknown): x is RoomMember {
   return isObj(x) && isStr(x.name) && typeof x.connected === 'boolean';
 }
@@ -70,13 +79,19 @@ export function parseToGuest(x: unknown): ToGuest | null {
   if (!isObj(x)) return null;
   switch (x.t) {
     case 'room':
-      return isStr(x.code) && Array.isArray(x.members) && x.members.every(isMember) && isInt(x.count)
-        ? { t: 'room', code: x.code, members: x.members, count: x.count }
+      return isStr(x.code) &&
+        Array.isArray(x.members) &&
+        x.members.every(isMember) &&
+        isInt(x.count) &&
+        isOptions(x.options)
+        ? { t: 'room', code: x.code, members: x.members, count: x.count, options: x.options }
         : null;
-    case 'state':
-      return isGameState(x.state) && Array.isArray(x.events) && x.events.every(isObj) && isIntList(x.offline)
-        ? { t: 'state', state: x.state, events: x.events as GameEvent[], offline: x.offline }
+    case 'state': {
+      const state = fillNewCards(x.state);
+      return isGameState(state) && Array.isArray(x.events) && x.events.every(isObj) && isIntList(x.offline)
+        ? { t: 'state', state, events: x.events as GameEvent[], offline: x.offline }
         : null;
+    }
     case 'presence':
       return isIntList(x.offline) ? { t: 'presence', offline: x.offline } : null;
     case 'pick':

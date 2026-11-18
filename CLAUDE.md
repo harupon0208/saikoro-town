@@ -38,6 +38,12 @@
   - オンラインのゲームは途中保存しない。ホストが閉じたら部屋は終わる。友達は同じコードで入り直せば席に戻れる
   - 招待リンク `?room=1234`。⚙ に「部屋を出る」
   - e2e：`e2e/online.spec.ts`（2タブ・`?net=local`）。本物の PeerJS は `ONLINE_REAL=1 npx playwright test e2e/online-real.spec.ts --project=desktop`（ネットが必要。普段はスキップ）
+- 港の拡張（2026-11-18。SPEC 14章。ユーザー依頼「バージョンごとに分けられるように」）
+  - カード・ランドマークに `expansion`、使うものは `optionsOf(state)` → `facilityIdsFor` / `landmarkIdsFor`。画面のランドマーク一覧は `playerLandmarks(p)`（`LANDMARK_IDS` を直接使わない）
+  - 市場10種類は `src/game/market.ts`。山札は作るときに混ぜておき、補充は先頭から引くだけ（建設で乱数を使わない）
+  - 開始画面とオンラインの部屋のバージョン選択は `src/ui/OptionsPicker.tsx`。部屋の設定は `room` メッセージで友達に届く
+  - テスト：`src/game/harbor.test.ts`（各カード・港・空港・市場・CPU同士120ゲーム）、`timeline.test.ts` の再生一致、`e2e/harbor.spec.ts`
+  - CPU は港・空港も建て、港の+2は「コインが増えるなら足す」。強さの調整はしていない
 - ルールは元の基本セットと照合済み（2026-11-18 に外部資料で再確認：カード15種・ランドマーク・処理順・赤は逆回り・払えない分は免除・紫は1人1枚・同じカードは枚数ぶん発動）。解釈で決めた点：電波塔の振り直しは同じ個数で、振り直した目を必ず使う（カード15種の色・目・コスト・収入・在庫、ランドマーク4種、処理順、モールの対象、払えない時の扱い）
 - 公開済み：https://harupon0208.github.io/saikoro-town/ （リポジトリ harupon0208/saikoro-town。`main` に push すると自動でテスト→ビルド→公開。コミットの作者は harupon0208 と noreply アドレス）
 - スマホ（同じWi-Fi）で試すときは開発サーバーを `npx vite --port 5173 --strictPort --host` で起動する

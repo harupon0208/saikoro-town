@@ -3,7 +3,7 @@ import { chooseCpuAction } from '../../game/ai';
 import { applyAction } from '../../game/engine';
 import { mulberry32 } from '../../game/rng';
 import { createGame } from '../../game/state';
-import type { GameEvent, GameState } from '../../game/types';
+import type { GameEvent, GameOptions, GameState } from '../../game/types';
 import {
   BASE_MS,
   LANDMARK_MS,
@@ -15,17 +15,17 @@ import {
   viewAt,
 } from './timeline';
 
-function cpuGame(n: number, seed: number): GameState {
+function cpuGame(n: number, seed: number, options?: GameOptions): GameState {
   return createGame(
-    { seats: Array.from({ length: n }, (_, i) => ({ name: `C${i}`, isHuman: false })) },
+    { seats: Array.from({ length: n }, (_, i) => ({ name: `C${i}`, isHuman: false })), options },
     mulberry32(seed),
   );
 }
 
 /** CPU 同士で最後まで遊び、1アクションごとに (前の状態, 結果, イベント) を集める */
-function playThrough(n: number, seed: number) {
+function playThrough(n: number, seed: number, options?: GameOptions) {
   const rng = mulberry32(seed + 1000);
-  let s = cpuGame(n, seed);
+  let s = cpuGame(n, seed, options);
   const records: { from: GameState; to: GameState; events: GameEvent[] }[] = [];
   for (let i = 0; i < 5000 && s.phase !== 'gameOver'; i++) {
     const r = applyAction(s, chooseCpuAction(s), rng);
@@ -143,6 +143,23 @@ describe('viewAt / replayAll：画面の状態', () => {
       }
     }
     expect(checked).toBeGreaterThan(1000);
+  });
+
+  it('港の拡張（10種類の市場）でも、全イベントの再生がエンジンの結果と一致する（30ゲーム）', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 30; seed++) {
+      for (const r of playThrough(2 + (seed % 3), seed, { expansions: ['harbor'], market: 'ten' })) {
+        const v = replayAll(r.from, r.events);
+        expect(v.players).toEqual(r.to.players);
+        expect(v.supply).toEqual(r.to.supply);
+        expect(v.deck).toEqual(r.to.deck);
+        expect(v.dice).toEqual(r.to.dice);
+        expect(!!v.harborBonus).toBe(!!r.to.harborBonus);
+        for (const e of r.events) seen.add(e.type);
+      }
+    }
+    // 港の拡張ならではのイベントも再生できている
+    expect([...seen]).toEqual(expect.arrayContaining(['HARBOR_ADDED', 'TUNA_ROLLED', 'MARKET_REFILLED']));
   });
 
   it('再生中はフェーズ・ターン・ログが前のまま、最後まで行くと結果になる', () => {

@@ -2,7 +2,16 @@
 // 外から見ると「状態とアクションを渡すと、新しい状態とイベントが返る」だけ。
 // 内部では入力のコピーを書き換えている（入力の state は変更しない）。
 
-import { FACILITIES, FACILITY_IDS, LANDMARKS, MALL_ICONS, isFacilityId, isLandmarkId } from './cards';
+import {
+  FACILITIES,
+  FACILITY_IDS,
+  LANDMARKS,
+  MALL_ICONS,
+  isFacilityId,
+  isLandmarkId,
+  playerLandmarks,
+} from './cards';
+import { refill } from './market';
 import { rollDie } from './rng';
 import type {
   Action,
@@ -20,6 +29,7 @@ const MAX_LOG = 200;
 interface Ctx {
   s: GameState;
   ev: GameEvent[];
+  rng: Rng;
 }
 
 function cloneState(state: GameState): GameState {
@@ -33,6 +43,36 @@ function log(ctx: Ctx, text: string): void {
 
 function sum(dice: number[]): number {
   return dice.reduce((a, b) => a + b, 0);
+}
+
+/** 収入を決める出目の合計（港で+2していれば足す） */
+export function rollTotal(state: GameState): number {
+  return sum(state.dice) + (state.harborBonus ? 2 : 0);
+}
+
+/** 港で「+2するか」を選べる出目か */
+export function canUseHarbor(state: GameState): boolean {
+  return !!state.players[state.current].landmarks.harbor && sum(state.dice) >= 10;
+}
+
+/** そのカードの条件（寿司屋・漁船は港が必要）を満たしているか */
+function meetsRequirement(p: Player, id: FacilityId): boolean {
+  const req = FACILITIES[id].requires;
+  return !req || !!p.landmarks[req];
+}
+
+/** 1枚あたりの収入（モールで+1） */
+function perCard(p: Player, id: FacilityId): number {
+  const def = FACILITIES[id];
+  return def.income + (p.landmarks.mall && MALL_ICONS.includes(def.icon) ? 1 : 0);
+}
+
+/** 工場・市場・花屋などの「数えるカード」の枚数（数えないカードは null） */
+function multiplierCount(p: Player, id: FacilityId): number | null {
+  const def = FACILITIES[id];
+  if (def.multiplierIcons) return iconCount(p, def.multiplierIcons);
+  if (def.multiplierCards) return def.multiplierCards.reduce((n, c) => n + p.cards[c], 0);
+  return null;
 }
 
 function cardName(id: FacilityId | LandmarkId): string {
@@ -71,9 +111,10 @@ export function swappableCards(p: Player): FacilityId[] {
 // ---------------------------------------------------------------------------
 // サイコロ
 
-function doRoll(ctx: Ctx, count: number, rng: Rng): void {
+function doRoll(ctx: Ctx, count: number): void {
   const s = ctx.s;
-  s.dice = Array.from({ length: count }, () => rollDie(rng));
+  s.dice = Array.from({ length: count }, () => rollDie(ctx.rng));
+  delete s.harborBonus;
   ctx.ev.push({ type: 'DICE_ROLLED', playerId: s.current, dice: [...s.dice] });
   const p = s.players[s.current];
   log(ctx, `${p.name}が${s.dice.join('+')}${count === 2 ? `=${sum(s.dice)}` : ''}を出した`);
@@ -84,8 +125,14 @@ function afterRoll(ctx: Ctx): void {
   if (s.players[s.current].landmarks.tower && !s.rerollUsed) {
     s.phase = 'rolled';
   } else {
-    resolveIncomeInner(ctx);
+    afterDiceFixed(ctx);
   }
+}
+
+/** 出目が決まった（振り直さない）：港で+2を選べるなら選ばせる */
+function afterDiceFixed(ctx: Ctx): void {
+  if (canUseHarbor(ctx.s)) ctx.s.phase = 'harbor';
+  else resolveIncomeInner(ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +141,7 @@ function afterRoll(ctx: Ctx): void {
 function resolveIncomeInner(ctx: Ctx): void {
   const s = ctx.s;
   s.phase = 'resolving';
-  const roll = sum(s.dice);
+  const roll = rollTotal(s);
   const active = s.current;
   const n = s.players.length;
 
@@ -105,14 +152,25 @@ function resolveIncomeInner(ctx: Ctx): void {
     for (const id of FACILITY_IDS) {
       const def = FACILITIES[id];
       if (def.color !== 'red' || p.cards[id] === 0 || !def.rolls.includes(roll)) continue;
+      if (!meetsRequirement(p, id)) continue;
       ctx.ev.push({ type: 'CARD_TRIGGERED', playerId: owner, cardId: id });
-      const per = def.income + (p.landmarks.mall && MALL_ICONS.includes(def.icon) ? 1 : 0);
-      const got = transfer(ctx, active, owner, per * p.cards[id], id);
+      const got = transfer(ctx, active, owner, perCard(p, id) * p.cards[id], id);
       if (got > 0) log(ctx, `${p.name}の${def.name}：${s.players[active].name}から${got}コイン`);
     }
   }
 
   // ② 青（全員）・緑（active のみ）。active から手番順に処理
+  // マグロ漁船：手番の人がサイコロ2個を振る（1手番に1回。持っている人全員がその目を使う）
+  let tuna: number | null = null;
+  const tunaRoll = (): number => {
+    if (tuna === null) {
+      const dice = [rollDie(ctx.rng), rollDie(ctx.rng)];
+      tuna = sum(dice);
+      ctx.ev.push({ type: 'TUNA_ROLLED', playerId: active, dice });
+      log(ctx, `マグロ漁船：${s.players[active].name}が${dice.join('+')}=${tuna}を出した`);
+    }
+    return tuna;
+  };
   for (let i = 0; i < n; i++) {
     const owner = (active + i) % n;
     const p = s.players[owner];
@@ -120,14 +178,13 @@ function resolveIncomeInner(ctx: Ctx): void {
       const def = FACILITIES[id];
       if (p.cards[id] === 0 || !def.rolls.includes(roll)) continue;
       if (def.color === 'blue' || (def.color === 'green' && owner === active)) {
+        if (!meetsRequirement(p, id)) continue;
         ctx.ev.push({ type: 'CARD_TRIGGERED', playerId: owner, cardId: id });
         let amount: number;
-        if (def.multiplierIcons) {
-          amount = p.cards[id] * def.income * iconCount(p, def.multiplierIcons);
-        } else {
-          const per = def.income + (p.landmarks.mall && MALL_ICONS.includes(def.icon) ? 1 : 0);
-          amount = p.cards[id] * per;
-        }
+        const mult = multiplierCount(p, id);
+        if (id === 'tuna') amount = p.cards[id] * tunaRoll();
+        else if (mult !== null) amount = p.cards[id] * perCard(p, id) * mult;
+        else amount = p.cards[id] * perCard(p, id);
         payFromBank(ctx, owner, amount, id);
         if (amount > 0) log(ctx, `${p.name}の${def.name}：+${amount}コイン`);
       }
@@ -138,14 +195,14 @@ function resolveIncomeInner(ctx: Ctx): void {
   runPurple(ctx, 'stadium');
 }
 
-type PurpleStage = 'stadium' | 'tv' | 'business';
-const PURPLE_STAGES: PurpleStage[] = ['stadium', 'tv', 'business'];
+type PurpleStage = 'stadium' | 'tv' | 'business' | 'publisher' | 'tax';
+const PURPLE_STAGES: PurpleStage[] = ['stadium', 'tv', 'business', 'publisher', 'tax'];
 
 function runPurple(ctx: Ctx, from: PurpleStage): void {
   const s = ctx.s;
   const active = s.current;
   const p = s.players[active];
-  const roll = sum(s.dice);
+  const roll = rollTotal(s);
   const n = s.players.length;
   const others = Array.from({ length: n - 1 }, (_, i) => (active + 1 + i) % n);
 
@@ -166,6 +223,24 @@ function runPurple(ctx: Ctx, from: PurpleStage): void {
         s.pendingChoice = { type: 'tv', playerId: active };
         return;
       }
+    } else if (stage === 'publisher') {
+      // 出版社：相手全員から、☕と🏪のカード1枚につき1コイン
+      ctx.ev.push({ type: 'CARD_TRIGGERED', playerId: active, cardId: 'publisher' });
+      let total = 0;
+      for (const o of others) {
+        const count = iconCount(s.players[o], ['cup', 'shop']);
+        total += transfer(ctx, o, active, def.income * count, 'publisher');
+      }
+      log(ctx, `${p.name}の出版社：合計${total}コイン`);
+    } else if (stage === 'tax') {
+      // 税務署：10コイン以上持っている相手全員から、半分（切り捨て）
+      ctx.ev.push({ type: 'CARD_TRIGGERED', playerId: active, cardId: 'tax' });
+      let total = 0;
+      for (const o of others) {
+        const c = s.players[o].coins;
+        if (c >= 10) total += transfer(ctx, o, active, Math.floor(c / 2), 'tax');
+      }
+      log(ctx, `${p.name}の税務署：合計${total}コイン`);
     } else {
       ctx.ev.push({ type: 'CARD_TRIGGERED', playerId: active, cardId: 'business' });
       const canSwap =
@@ -208,7 +283,7 @@ export function getBuildOptions(state: GameState): (FacilityId | LandmarkId)[] {
   const p = state.players[state.current];
   const options: (FacilityId | LandmarkId)[] = [];
   for (const id of FACILITY_IDS) if (canBuyFacility(state, p, id)) options.push(id);
-  for (const id of Object.keys(LANDMARKS) as LandmarkId[]) {
+  for (const id of playerLandmarks(p)) {
     if (!p.landmarks[id] && p.coins >= LANDMARKS[id].cost) options.push(id);
   }
   return options;
@@ -228,6 +303,11 @@ function doBuild(ctx: Ctx, id: FacilityId | LandmarkId | null): void {
 
   if (id === null) {
     log(ctx, `${p.name}は何も買わなかった`);
+    if (p.landmarks.airport) {
+      p.coins += 10;
+      ctx.ev.push({ type: 'COINS_MOVED', from: 'bank', to: active, amount: 10, cardId: 'airport' });
+      log(ctx, `${p.name}の空港：+10コイン`);
+    }
   } else if (isLandmarkId(id)) {
     const cost = LANDMARKS[id].cost;
     p.coins -= cost;
@@ -251,6 +331,16 @@ function doBuild(ctx: Ctx, id: FacilityId | LandmarkId | null): void {
     ctx.ev.push({ type: 'COINS_MOVED', from: active, to: 'bank', amount: cost, cardId: id });
     ctx.ev.push({ type: 'BUILT', playerId: active, id });
     log(ctx, `${p.name}が${cardName(id)}を建てた`);
+    // 10種類だけ並べる市場：山が売り切れたら、山札から引いて10種類にする
+    if (s.supply[id] === 0 && s.deck && s.deck.length > 0) {
+      const before = { ...s.supply };
+      const drawn = refill(s.supply, s.deck);
+      if (drawn.length > 0) {
+        ctx.ev.push({ type: 'MARKET_REFILLED', cards: drawn });
+        const fresh = [...new Set(drawn)].filter((d) => before[d] === 0);
+        log(ctx, `市場に新しいカード：${fresh.map(cardName).join('・') || '（今ある種類に補充）'}`);
+      }
+    }
   }
 
   // この手番で建てた遊園地は、この手番のゾロ目には効かない（振ったときに持っていたかで決める）
@@ -276,6 +366,7 @@ function startTurn(ctx: Ctx, playerId: number): void {
   s.phase = 'chooseDice';
   s.rerollUsed = false;
   delete s.pendingChoice;
+  delete s.harborBonus;
   ctx.ev.push({ type: 'TURN_STARTED', playerId });
 }
 
@@ -293,11 +384,13 @@ export function isValidAction(state: GameState, action: Action): boolean {
     case 'CHOOSE_DICE':
       if (state.phase !== 'chooseDice') return false;
       if (action.count === 1) return true;
-      return action.count === 2 && p.landmarks.station;
+      return action.count === 2 && !!p.landmarks.station;
     case 'REROLL':
       return state.phase === 'rolled' && !state.rerollUsed;
     case 'KEEP':
       return state.phase === 'rolled';
+    case 'HARBOR':
+      return state.phase === 'harbor' && typeof action.add === 'boolean';
     case 'CHOOSE_TARGET':
       return (
         state.phase === 'resolving' &&
@@ -326,21 +419,29 @@ export function applyAction(state: GameState, action: Action, rng: Rng): ActionR
   if (!isValidAction(state, action)) {
     throw new Error(`不正なアクション: ${JSON.stringify(action)}（phase=${state.phase}）`);
   }
-  const ctx: Ctx = { s: cloneState(state), ev: [] };
+  const ctx: Ctx = { s: cloneState(state), ev: [], rng };
   const s = ctx.s;
 
   switch (action.type) {
     case 'CHOOSE_DICE':
-      doRoll(ctx, action.count, rng);
+      doRoll(ctx, action.count);
       afterRoll(ctx);
       break;
     case 'REROLL':
       s.rerollUsed = true;
       log(ctx, `${s.players[s.current].name}は振り直した`);
-      doRoll(ctx, s.dice.length, rng);
-      resolveIncomeInner(ctx);
+      doRoll(ctx, s.dice.length);
+      afterDiceFixed(ctx);
       break;
     case 'KEEP':
+      afterDiceFixed(ctx);
+      break;
+    case 'HARBOR':
+      if (action.add) {
+        s.harborBonus = true;
+        ctx.ev.push({ type: 'HARBOR_ADDED', playerId: s.current });
+        log(ctx, `${s.players[s.current].name}は港で+2して${rollTotal(s)}にした`);
+      }
       resolveIncomeInner(ctx);
       break;
     case 'CHOOSE_TARGET':

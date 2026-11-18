@@ -18,10 +18,21 @@ export const COLOR_NAMES: Record<Color, string> = {
 
 /** 工場・市場が数えるカードの名前（例: 「森・鉱山」） */
 export function multiplierNames(id: FacilityId): string {
-  const icons = FACILITIES[id].multiplierIcons ?? [];
-  return FACILITY_IDS.filter((f) => icons.includes(FACILITIES[f].icon))
+  const c = FACILITIES[id];
+  if (c.multiplierCards) return c.multiplierCards.map((f) => FACILITIES[f].name).join('・');
+  if (c.multiplierIcons?.includes('cup')) return '☕';
+  const icons = c.multiplierIcons ?? [];
+  return FACILITY_IDS.filter((f) => icons.includes(FACILITIES[f].icon) && !FACILITIES[f].expansion)
     .map((f) => FACILITIES[f].name)
     .join('・');
+}
+
+/** 数えるカードの枚数（工場・市場・花屋など） */
+function multiplierCount(p: Player, id: FacilityId): number {
+  const c = FACILITIES[id];
+  if (c.multiplierCards) return c.multiplierCards.reduce((n, f) => n + p.cards[f], 0);
+  const icons = c.multiplierIcons ?? [];
+  return FACILITY_IDS.filter((f) => icons.includes(FACILITIES[f].icon)).reduce((n, f) => n + p.cards[f], 0);
 }
 
 /** カードに書く短い効果（例: 「銀行から1」「牧場×3」） */
@@ -30,9 +41,13 @@ export function shortEffect(id: FacilityId): string {
   if (id === 'stadium') return `全員から${c.income}`;
   if (id === 'tv') return `1人から${c.income}`;
   if (id === 'business') return '施設を交換';
-  if (c.multiplierIcons) return `${multiplierNames(id)}×${c.income}`;
-  if (c.color === 'red') return `振った人から${c.income}`;
-  return `銀行から${c.income}`;
+  if (id === 'publisher') return '☕🏪×1ずつ';
+  if (id === 'tax') return '10以上から半分';
+  if (id === 'tuna') return '⚓ 2個振った数';
+  const harbor = c.requires === 'harbor' ? '⚓ ' : '';
+  if (c.multiplierIcons || c.multiplierCards) return `${multiplierNames(id)}×${c.income}`;
+  if (c.color === 'red') return `${harbor}振った人から${c.income}`;
+  return `${harbor}銀行から${c.income}`;
 }
 
 export function rollsLabel(id: FacilityId): string {
@@ -43,11 +58,8 @@ export function rollsLabel(id: FacilityId): string {
 /** 工場・市場の収入の内訳（例: 「牧場3 × 3 = +9」）。それ以外は null */
 export function incomeFormula(p: Player, id: FacilityId, amount: number): string | null {
   const c = FACILITIES[id];
-  if (!c.multiplierIcons) return null;
-  const n = FACILITY_IDS.filter((f) => c.multiplierIcons!.includes(FACILITIES[f].icon)).reduce(
-    (sum, f) => sum + p.cards[f],
-    0,
-  );
+  if (!c.multiplierIcons && !c.multiplierCards) return null;
+  const n = multiplierCount(p, id);
   const copies = p.cards[id] > 1 ? ` × ${p.cards[id]}枚` : '';
   return `${multiplierNames(id)}${n} × ${c.income}${copies} = +${amount}`;
 }

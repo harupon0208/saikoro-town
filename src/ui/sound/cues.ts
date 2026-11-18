@@ -69,6 +69,17 @@ export function cuesForStep(step: Step, game: GameState, landAt: number, mine?: 
     case 'support':
       cues.push({ name: 'coin', at: t.arrive });
       break;
+    case 'harbor':
+      cues.push({ name: 'trigger', at: 0 });
+      break;
+    case 'tuna': {
+      const land = Math.round(step.ms * landAt * 0.9);
+      cues.push({ name: 'roll', at: 0, dur: land }, { name: 'land', at: land });
+      break;
+    }
+    case 'refill':
+      cues.push({ name: 'pick', at: 0 });
+      break;
     case 'swap':
       cues.push({ name: 'swap', at: 0 });
       break;

@@ -8,7 +8,18 @@ import type { FacilityId, GameEvent, GameState } from '../../game/types';
 
 export type Speed = 'normal' | 'fast' | 'none';
 
-export type StepKind = 'dice' | 'income' | 'support' | 'swap' | 'build' | 'extraTurn' | 'turn' | 'win';
+export type StepKind =
+  | 'dice'
+  | 'harbor'
+  | 'tuna'
+  | 'income'
+  | 'support'
+  | 'swap'
+  | 'build'
+  | 'refill'
+  | 'extraTurn'
+  | 'turn'
+  | 'win';
 
 export interface Step {
   kind: StepKind;
@@ -24,8 +35,11 @@ export interface Step {
  */
 export const BASE_MS: Record<StepKind, number> = {
   dice: 1900, // 立体のサイコロが投げ込まれて転がり、出た目を読む間まで
+  harbor: 1300, // 港で+2
+  tuna: 1600, // マグロ漁船のサイコロ
   income: 1300, // カードが光る → コインが飛ぶ → 数字が増える、を順に見せる
-  support: 1300, // 0コインのとき銀行から1コイン
+  support: 1300, // 0コインのとき銀行から1コイン・空港の10コイン
+  refill: 1300, // 市場に新しいカードが並ぶ
   swap: 1400,
   build: 1200,
   extraTurn: 1500,
@@ -79,8 +93,17 @@ export function buildSteps(events: GameEvent[], speed: Speed): Step[] {
         push('dice', e);
         break;
       case 'COINS_MOVED':
-        // 0コインでもらう1コイン / 建設の支払い（続く BUILT と同じコマにする）
-        push(e.support ? 'support' : 'build', e);
+        // 0コインでもらう1コイン・空港の10コイン / 建設の支払い（続く BUILT と同じコマにする）
+        push(e.from === 'bank' ? 'support' : 'build', e);
+        break;
+      case 'HARBOR_ADDED':
+        push('harbor', e);
+        break;
+      case 'TUNA_ROLLED':
+        push('tuna', e);
+        break;
+      case 'MARKET_REFILLED':
+        push('refill', e);
         break;
       case 'BUILT':
       case 'LANDMARK_COMPLETED':
@@ -114,12 +137,20 @@ export function buildSteps(events: GameEvent[], speed: Speed): Step[] {
 // 画面に出す状態
 
 /** 画面がイベントに合わせて追いかける部分 */
-type Replayed = Pick<GameState, 'players' | 'supply' | 'dice' | 'current'>;
+type Replayed = Pick<GameState, 'players' | 'supply' | 'dice' | 'current' | 'harborBonus' | 'deck'>;
 
 function applyEvent(v: Replayed, e: GameEvent): void {
   switch (e.type) {
     case 'DICE_ROLLED':
       v.dice = [...e.dice];
+      delete v.harborBonus;
+      break;
+    case 'HARBOR_ADDED':
+      v.harborBonus = true;
+      break;
+    case 'MARKET_REFILLED':
+      for (const id of e.cards) v.supply[id] += 1;
+      if (v.deck) v.deck = v.deck.slice(e.cards.length);
       break;
     case 'COINS_MOVED':
       if (e.from !== 'bank') v.players[e.from].coins -= e.amount;
@@ -143,6 +174,7 @@ function applyEvent(v: Replayed, e: GameEvent): void {
       break;
     case 'TURN_STARTED':
       v.current = e.playerId;
+      delete v.harborBonus;
       break;
   }
 }
@@ -162,7 +194,14 @@ export function viewAt(from: GameState, to: GameState, steps: Step[], index: num
 /** すべてのイベントを再生した結果（テスト用：to と一致するはず） */
 export function replayAll(from: GameState, events: GameEvent[]): Replayed {
   const v: Replayed = JSON.parse(
-    JSON.stringify({ players: from.players, supply: from.supply, dice: from.dice, current: from.current }),
+    JSON.stringify({
+      players: from.players,
+      supply: from.supply,
+      dice: from.dice,
+      current: from.current,
+      harborBonus: from.harborBonus,
+      deck: from.deck,
+    }),
   );
   for (const e of events) applyEvent(v, e);
   return v;

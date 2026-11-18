@@ -3,7 +3,7 @@ import { chooseCpuAction } from '../game/ai';
 import { applyAction, isValidAction } from '../game/engine';
 import { clearSave, getDefaultStorage, loadGame, saveGame } from '../game/save';
 import { createGame } from '../game/state';
-import type { Action, FacilityId, GameConfig, GameEvent, GameState, LandmarkId } from '../game/types';
+import type { Action, FacilityId, GameConfig, GameEvent, GameOptions, GameState, LandmarkId } from '../game/types';
 import { HOST_ID, isRoomCode, seatOf, seatsFor } from '../net/lobby';
 import type { RoomMember } from '../net/protocol';
 import { GuestRoom, type GuestHandlers, HostRoom, getClientId } from '../net/room';
@@ -57,7 +57,7 @@ type Screen =
   | { kind: 'game' }
   | { kind: 'hostLobby'; error: string | null }
   | { kind: 'join'; code: string; busy: boolean; error: string | null }
-  | { kind: 'guestLobby'; members: RoomMember[]; count: number };
+  | { kind: 'guestLobby'; members: RoomMember[]; count: number; options: GameOptions | null };
 
 type Online =
   | { role: 'host'; room: HostRoom }
@@ -364,7 +364,14 @@ export function App() {
   const startOnline = () => {
     const o = onlineRef.current;
     if (o?.role !== 'host') return;
-    const s = createGame({ seats: seatsFor(o.room.members, o.room.count, CPU_NAMES) }, rng);
+    const opts = o.room.options;
+    const s = createGame(
+      {
+        seats: seatsFor(o.room.members, o.room.count, CPU_NAMES),
+        ...(opts.expansions.length > 0 ? { options: opts } : {}),
+      },
+      rng,
+    );
     mineRef.current = seatOf(s, HOST_ID);
     o.room.start(s);
     begin(s);
@@ -372,7 +379,7 @@ export function App() {
 
   // --- 友達 ---
   const guestHandlers = (code: string): GuestHandlers => ({
-    onRoom: (members, count) => setScreen({ kind: 'guestLobby', members, count }),
+    onRoom: (members, count, options) => setScreen({ kind: 'guestLobby', members, count, options }),
     onState: (state, events, off) => {
       setOffline(off);
       setCpuPick(null);
@@ -410,7 +417,7 @@ export function App() {
     try {
       const room = await GuestRoom.join(network, code, clientId, guestName, guestHandlers(code));
       setOnline({ role: 'guest', room, code, name: guestName });
-      setScreen((s) => (s.kind === 'join' ? { kind: 'guestLobby', members: [], count: 0 } : s));
+      setScreen((s) => (s.kind === 'join' ? { kind: 'guestLobby', members: [], count: 0, options: null } : s));
     } catch (e) {
       setScreen({ kind: 'join', code, busy: false, error: e instanceof Error ? e.message : String(e) });
     }
@@ -453,6 +460,8 @@ export function App() {
         error={screen.error}
         members={room?.members ?? []}
         count={room?.count ?? 4}
+        options={room?.options ?? { expansions: [], market: 'all' }}
+        onOptions={(o) => room?.setOptions(o)}
         name={name}
         onName={(n) => {
           storeName(n);
@@ -483,7 +492,13 @@ export function App() {
   if (screen.kind === 'guestLobby' && online?.role === 'guest') {
     return (
       <>
-        <GuestLobby code={online.code} members={screen.members} count={screen.count} onLeave={leaveOnline} />
+        <GuestLobby
+          code={online.code}
+          members={screen.members}
+          count={screen.count}
+          options={screen.options}
+          onLeave={leaveOnline}
+        />
         {overlay}
       </>
     );

@@ -1,7 +1,10 @@
 // サイコロタウンの型定義。GameState はすべて JSON に変換できる形にする（関数・クラスを入れない）。
 
 export type Color = 'blue' | 'green' | 'red' | 'purple';
-export type Icon = 'wheat' | 'cow' | 'gear' | 'shop' | 'cup' | 'factory' | 'fruit' | 'major';
+export type Icon = 'wheat' | 'cow' | 'gear' | 'shop' | 'cup' | 'factory' | 'fruit' | 'major' | 'boat';
+
+/** 拡張。'harbor' = 港の拡張 */
+export type Expansion = 'harbor';
 
 export type FacilityId =
   | 'wheat'
@@ -18,9 +21,20 @@ export type FacilityId =
   | 'mine'
   | 'restaurant'
   | 'apple'
-  | 'market';
+  | 'market'
+  // 港の拡張
+  | 'sushi'
+  | 'flower'
+  | 'flowerShop'
+  | 'mackerel'
+  | 'tuna'
+  | 'warehouse'
+  | 'pizza'
+  | 'burger'
+  | 'publisher'
+  | 'tax';
 
-export type LandmarkId = 'station' | 'mall' | 'park' | 'tower';
+export type LandmarkId = 'station' | 'mall' | 'park' | 'tower' | 'harbor' | 'airport';
 
 export interface CardDef {
   id: FacilityId;
@@ -36,6 +50,12 @@ export interface CardDef {
   income: number;
   /** 工場・市場：このアイコンのカード枚数 × income を受け取る */
   multiplierIcons?: Icon[];
+  /** 花屋：このカードの枚数 × income を受け取る */
+  multiplierCards?: FacilityId[];
+  /** このランドマークを持っていないと発動しない（港の拡張の寿司屋・漁船） */
+  requires?: LandmarkId;
+  /** どの拡張のカードか（基本セットは undefined） */
+  expansion?: Expansion;
   /** 在庫。'players' はプレイ人数と同じ枚数 */
   stock: number | 'players';
 }
@@ -47,6 +67,7 @@ export interface LandmarkDef {
   emoji: string;
   image?: string;
   description: string;
+  expansion?: Expansion;
 }
 
 export type Personality = 'steady' | 'ranchFactory' | 'resourceFactory' | 'balanced';
@@ -60,11 +81,14 @@ export interface Player {
   /** CPU のみ。保存・再開しても同じ性格を使う */
   personality?: Personality;
   coins: number;
+  /** すべての施設の枚数（このゲームで使わない施設も 0 で入っている） */
   cards: Record<FacilityId, number>;
-  landmarks: Record<LandmarkId, boolean>;
+  /** このゲームで使うランドマークだけが入っている（基本は4つ、港の拡張は6つ）。全部建てたら勝ち */
+  landmarks: Partial<Record<LandmarkId, boolean>>;
 }
 
-export type Phase = 'chooseDice' | 'rolled' | 'resolving' | 'build' | 'gameOver';
+/** harbor = 港で「+2するか」を選ぶ */
+export type Phase = 'chooseDice' | 'rolled' | 'harbor' | 'resolving' | 'build' | 'gameOver';
 
 export type PendingChoice =
   | { type: 'tv'; playerId: number }
@@ -75,9 +99,22 @@ export interface LogEntry {
   text: string;
 }
 
+/** 遊び方の設定。market: 'all' = 全種類を並べる / 'ten' = 山札から10種類だけ並べる */
+export interface GameOptions {
+  expansions: Expansion[];
+  market: 'all' | 'ten';
+}
+
 export interface GameState {
   players: Player[];
+  /** 市場に並んでいる枚数 */
   supply: Record<FacilityId, number>;
+  /** 遊び方（古い保存データにはない＝基本セット・全種類） */
+  options?: GameOptions;
+  /** 市場の山札（10種類だけ並べるとき。先頭から引く） */
+  deck?: FacilityId[];
+  /** 港で合計に2を足した */
+  harborBonus?: boolean;
   current: number;
   phase: Phase;
   dice: number[];
@@ -93,6 +130,8 @@ export type Action =
   | { type: 'CHOOSE_DICE'; playerId: number; count: 1 | 2 }
   | { type: 'REROLL'; playerId: number }
   | { type: 'KEEP'; playerId: number }
+  /** 港：合計に2を足すか */
+  | { type: 'HARBOR'; playerId: number; add: boolean }
   | { type: 'CHOOSE_TARGET'; playerId: number; targetId: number }
   | { type: 'SWAP'; playerId: number; targetId: number; give: FacilityId; take: FacilityId }
   | { type: 'SKIP_SWAP'; playerId: number }
@@ -108,13 +147,19 @@ export type GameEvent =
       to: number | 'bank';
       amount: number;
       cardId?: FacilityId | LandmarkId;
-      /** 建設のときに0コインだったのでもらった1コイン */
+      /** 建設のときに0コインだったのでもらった1コイン（空港の10コインは cardId: 'airport'） */
       support?: true;
     }
   | { type: 'CARDS_SWAPPED'; a: number; b: number; aCard: FacilityId; bCard: FacilityId }
   | { type: 'BUILT'; playerId: number; id: FacilityId | LandmarkId }
   | { type: 'LANDMARK_COMPLETED'; playerId: number; id: LandmarkId }
   | { type: 'EXTRA_TURN'; playerId: number }
+  /** 港で合計に2を足した */
+  | { type: 'HARBOR_ADDED'; playerId: number }
+  /** マグロ漁船：手番の人がサイコロ2個を振った */
+  | { type: 'TUNA_ROLLED'; playerId: number; dice: number[] }
+  /** 市場の山が売り切れたので、山札から引いて並べた（引いた順） */
+  | { type: 'MARKET_REFILLED'; cards: FacilityId[] }
   | { type: 'TURN_STARTED'; playerId: number }
   | { type: 'GAME_WON'; playerId: number };
 
@@ -134,4 +179,6 @@ export interface SeatConfig {
 
 export interface GameConfig {
   seats: SeatConfig[];
+  /** 省略すると基本セット・全種類 */
+  options?: GameOptions;
 }

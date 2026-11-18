@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FACILITIES, LANDMARKS, LANDMARK_IDS, isLandmarkId } from '../game/cards';
-import { getBuildOptions, swappableCards } from '../game/engine';
+import { FACILITIES, LANDMARKS, isLandmarkId, playerLandmarks } from '../game/cards';
+import { getBuildOptions, rollTotal, swappableCards } from '../game/engine';
 import type { Action, FacilityId, GameEvent, GameState, Phase, Player } from '../game/types';
 import { Ambience, Banner, DiceView, FlyLayer, TriggerBubbles } from './anim/Effects';
 import type { CpuPick } from './App';
@@ -45,6 +45,7 @@ const NO_OFFLINE: number[] = [];
 const PHASE_LABELS: Record<Phase, string> = {
   chooseDice: 'サイコロ',
   rolled: '振り直し',
+  harbor: '港',
   resolving: '収入',
   build: '建設',
   gameOver: '終了',
@@ -314,7 +315,7 @@ function DicePanel({
   dispatch: (a: Action) => void;
 }) {
   const current = game.players[game.current];
-  const total = game.dice.reduce((a, b) => a + b, 0);
+  const total = rollTotal(game);
   const playerId = current.id;
   const rolling = step?.kind === 'dice';
   // 振るたびに変わる番号（合計の「ポン」を、振ったときだけ出すため）
@@ -371,6 +372,19 @@ function DicePanel({
         )}
       </>
     );
+  } else if (game.phase === 'harbor') {
+    const sum = game.dice.reduce((a, b) => a + b, 0);
+    prompt = (
+      <>
+        <span className="hint">⚓ 港：合計に2を足せます</span>
+        <button className="btn" onClick={() => dispatch({ type: 'HARBOR', playerId, add: false })}>
+          {sum}のまま
+        </button>
+        <button className="btn gold" onClick={() => dispatch({ type: 'HARBOR', playerId, add: true })}>
+          +2して{sum + 2}にする
+        </button>
+      </>
+    );
   } else if (game.phase === 'rolled') {
     prompt = (
       <>
@@ -407,11 +421,12 @@ function DicePanel({
           {game.dice.length > 0 && (
             // 転がっている間は隠しておき、止まった瞬間にポンと出す
             <span
-              key={`${rollId.current}-${game.dice.join('-')}-${game.turn}`}
+              key={`${rollId.current}-${game.dice.join('-')}-${game.turn}-${game.harborBonus ? 'h' : ''}`}
               className="total-pop"
               style={rolling ? { animationDelay: `${Math.round((step?.ms ?? 0) * LAND_AT)}ms` } : undefined}
             >
               {total}
+              {game.harborBonus && <small className="harbor-plus">⚓+2</small>}
               {game.dice.length === 2 && game.dice[0] === game.dice[1] && <small className="doubles">ゾロ目</small>}
             </span>
           )}
@@ -481,12 +496,14 @@ function MyBar({
   onPick: (id: CardId) => void;
 }) {
   return (
-    <section className={`my-bar panel-light${myTurn ? ' turn' : ''}`} aria-label={`${viewer.name}の所持金とランドマーク`}>
+    <section
+      className={`my-bar panel-light${myTurn ? ' turn' : ''}${playerLandmarks(viewer).length > 4 ? ' lm6' : ''}`}
+      aria-label={`${viewer.name}の所持金とランドマーク`}>
       <span className="my-coins" aria-label={`${viewer.name}の所持金`}>
         <span className="coin" />
         <Coins player={viewer} fx={fx} suffix="" />
       </span>
-      {LANDMARK_IDS.map((id) => {
+      {playerLandmarks(viewer).map((id) => {
         const built = viewer.landmarks[id];
         const buyable = game.phase === 'build' && options.includes(id);
         const sparkle = fx.sparkle.has(`${viewer.id}:${id}`);
@@ -818,7 +835,7 @@ function BusinessSheet({ game, me, dispatch }: { game: GameState; me: Player; di
 
 function GameOverSheet({ game, onExit }: { game: GameState; onExit: () => void }) {
   const winner = game.players[game.winner!];
-  const built = (p: Player) => LANDMARK_IDS.filter((id) => p.landmarks[id]).length;
+  const built = (p: Player) => playerLandmarks(p).filter((id) => p.landmarks[id]).length;
   const ranked = [...game.players].sort((a, b) => built(b) - built(a) || b.coins - a.coins);
   return (
     <Sheet>

@@ -1,6 +1,6 @@
 // CPU の思考。状態を見て次の Action を返すだけ（実行は applyAction が行う）。
 
-import { FACILITIES, FACILITY_IDS, LANDMARKS } from './cards';
+import { FACILITIES, FACILITY_IDS, LANDMARKS, playerLandmarks } from './cards';
 import { applyAction, getBuildOptions, swappableCards } from './engine';
 import type { Action, FacilityId, GameState, LandmarkId, Personality, Player } from './types';
 
@@ -14,11 +14,12 @@ export const PERSONALITY_LABELS: Record<Personality, string> = {
 const ONE_DIE = [0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0].map((x) => x / 6);
 const TWO_DICE = [0, 0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1].map((x) => x / 36);
 
+// 港・空港は港の拡張のときだけ建てられる（建てられないものは getBuildOptions に出てこない）
 const LANDMARK_PRIORITY: Record<Personality, LandmarkId[]> = {
-  steady: ['mall', 'station', 'park', 'tower'],
-  ranchFactory: ['station', 'mall', 'park', 'tower'],
-  resourceFactory: ['station', 'mall', 'park', 'tower'],
-  balanced: ['station', 'mall', 'park', 'tower'],
+  steady: ['mall', 'station', 'harbor', 'park', 'tower', 'airport'],
+  ranchFactory: ['station', 'harbor', 'mall', 'park', 'tower', 'airport'],
+  resourceFactory: ['station', 'harbor', 'mall', 'park', 'tower', 'airport'],
+  balanced: ['station', 'harbor', 'mall', 'park', 'tower', 'airport'],
 };
 
 /** これ未満の点数のカードは買わない */
@@ -51,7 +52,7 @@ function evalTwoDice(p: Player): boolean {
   const per = personalityOf(p);
   if (per === 'steady') return false;
   if (per === 'ranchFactory' || per === 'resourceFactory') return true;
-  return p.landmarks.station;
+  return !!p.landmarks.station;
 }
 
 function iconCount(p: Player, icons: string[]): number {
@@ -63,24 +64,41 @@ function iconCount(p: Player, icons: string[]): number {
 
 /** 1周（全員の手番1回ずつ）あたりの期待収入 = 確率 × 収入 */
 function expectedValue(state: GameState, p: Player, id: FacilityId): number {
+  // 港がないと発動しないカードは、港を建てるまで価値が低い
+  const req = FACILITIES[id].requires;
+  const factor = req && !p.landmarks[req] ? 0.3 : 1;
+  return factor * rawValue(state, p, id);
+}
+
+function rawValue(state: GameState, p: Player, id: FacilityId): number {
   const def = FACILITIES[id];
   const own2 = evalTwoDice(p);
   const opponents = state.players.filter((o) => o.id !== p.id);
   const mall = p.landmarks.mall && (def.icon === 'shop' || def.icon === 'cup') ? 1 : 0;
   const ownP = hitProb(def.rolls, own2);
-  const oppP = opponents.reduce((a, o) => a + hitProb(def.rolls, o.landmarks.station), 0);
+  const oppP = opponents.reduce((a, o) => a + hitProb(def.rolls, !!o.landmarks.station), 0);
 
   switch (def.color) {
     case 'blue':
+      if (id === 'tuna') return (ownP + oppP) * 7; // 2個振りの平均
       return (ownP + oppP) * def.income;
     case 'red':
       return oppP * (def.income + mall);
     case 'green':
       if (def.multiplierIcons) return ownP * def.income * iconCount(p, def.multiplierIcons);
+      if (def.multiplierCards) {
+        return ownP * (def.income + mall) * def.multiplierCards.reduce((n, c) => n + p.cards[c], 0);
+      }
       return ownP * (def.income + mall);
     case 'purple': {
       if (id === 'stadium') return ownP * def.income * opponents.length;
       if (id === 'tv') return ownP * Math.min(5, Math.max(...opponents.map((o) => o.coins), 0));
+      if (id === 'publisher') {
+        return ownP * opponents.reduce((a, o) => a + Math.min(o.coins, iconCount(o, ['cup', 'shop'])), 0);
+      }
+      if (id === 'tax') {
+        return ownP * opponents.reduce((a, o) => a + (o.coins >= 10 ? Math.floor(o.coins / 2) : 0), 0);
+      }
       return ownP * 1;
     }
   }
@@ -133,15 +151,24 @@ function chooseBuild(state: GameState): FacilityId | LandmarkId | null {
 function shouldReroll(state: GameState): boolean {
   const me = state.current;
   const before = state.players[me].coins;
-  const after = applyAction(state, { type: 'KEEP', playerId: me }, () => 0).state;
+  let after = applyAction(state, { type: 'KEEP', playerId: me }, () => 0).state;
+  if (after.phase === 'harbor') after = applyAction(after, chooseHarbor(after), () => 0).state;
   const gain = after.players[me].coins - before;
   if (gain <= 0) return true;
   const p = state.players[me];
-  const remaining = (Object.keys(LANDMARKS) as LandmarkId[])
+  const remaining = playerLandmarks(p)
     .filter((id) => !p.landmarks[id])
     .map((id) => LANDMARKS[id].cost);
   if (remaining.length === 0) return false;
   return after.players[me].coins < Math.min(...remaining);
+}
+
+/** 港：+2したほうが自分のコインが増えるなら+2する（同じなら足さない） */
+function chooseHarbor(state: GameState): Action {
+  const playerId = state.current;
+  const gain = (add: boolean) =>
+    applyAction(state, { type: 'HARBOR', playerId, add }, () => 0.5).state.players[playerId].coins;
+  return { type: 'HARBOR', playerId, add: gain(true) > gain(false) };
 }
 
 function chooseTvTarget(state: GameState): number {
@@ -179,6 +206,8 @@ export function chooseCpuAction(state: GameState): Action {
       return { type: 'CHOOSE_DICE', playerId, count: chooseDiceCount(p) };
     case 'rolled':
       return shouldReroll(state) ? { type: 'REROLL', playerId } : { type: 'KEEP', playerId };
+    case 'harbor':
+      return chooseHarbor(state);
     case 'resolving':
       if (state.pendingChoice?.type === 'tv') {
         return { type: 'CHOOSE_TARGET', playerId, targetId: chooseTvTarget(state) };

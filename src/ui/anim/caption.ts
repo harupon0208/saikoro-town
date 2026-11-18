@@ -24,7 +24,14 @@ export function stepCaption(step: Step | null, game: GameState): string {
         return `${name(e.playerId)}の${FACILITIES[e.cardId].name}が発動！`;
       case 'COINS_MOVED':
         if (e.support && e.to !== 'bank') return `${name(e.to)}は0コインなので1コインもらった`;
+        if (e.cardId === 'airport' && e.to !== 'bank') return `${name(e.to)}の空港：+${e.amount}コイン`;
         break;
+      case 'HARBOR_ADDED':
+        return `${name(e.playerId)}は港で+2！`;
+      case 'TUNA_ROLLED':
+        return `マグロ漁船：${e.dice.join('+')}=${e.dice[0] + e.dice[1]}！`;
+      case 'MARKET_REFILLED':
+        return '市場に新しいカードが並んだ';
       case 'EXTRA_TURN':
         return 'ゾロ目でもう1回！';
       case 'TURN_STARTED':
