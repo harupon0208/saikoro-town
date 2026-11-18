@@ -32,6 +32,7 @@ export function createGame(config: GameConfig, rng: Rng): GameState {
       cards,
       landmarks: { station: false, mall: false, park: false, tower: false },
     };
+    if (seat.owner !== undefined) p.owner = seat.owner;
     if (!seat.isHuman) p.personality = PERSONALITIES[Math.floor(rng() * PERSONALITIES.length)];
     return p;
   });

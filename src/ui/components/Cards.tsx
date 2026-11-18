@@ -217,11 +217,14 @@ export function Rivals({
   current,
   fx,
   anchors,
+  offline = [],
   onPick,
 }: {
   players: Player[];
   current: number;
   fx: Fx;
+  /** オンライン対戦：通信が切れている人の席 */
+  offline?: number[];
   /** 所持金に data-anchor をつけるか（スマホの上部と二重にならないように） */
   anchors: boolean;
   onPick: (id: CardId) => void;
@@ -232,6 +235,7 @@ export function Rivals({
         <div key={p.id} className={`rival panel-light${p.id === current ? ' turn' : ''}`}>
           <div className="rival-head">
             <b>{p.name}</b>
+            {offline.includes(p.id) && <span className="offline-tag">通信切れ</span>}
             {anchors ? <Coins player={p} fx={fx} /> : <span>{p.coins} c</span>}
           </div>
           <div className="rival-lms">

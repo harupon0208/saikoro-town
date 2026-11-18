@@ -1,0 +1,188 @@
+/* オンライン対戦の画面（部屋を作る・入る・待合室・通信が切れたとき） */
+
+main.start .online-panel {
+  margin-top: 16px;
+}
+main.start .online-panel .row > button {
+  flex: 1;
+}
+
+main.start.online .panel > * + h2 {
+  margin-top: 16px;
+}
+main.start.online input {
+  width: 100%;
+}
+main.start button.ghost {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-muted);
+}
+main.start button:disabled {
+  opacity: 0.45;
+}
+
+.code-card {
+  text-align: center;
+  padding: 12px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px rgba(154, 111, 18, 0.35);
+}
+.code-card > p:first-child {
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.room-code {
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  padding-left: 0.25em; /* 字間ぶん中央に寄せる */
+  line-height: 1.2;
+  color: var(--felt);
+  font-variant-numeric: tabular-nums;
+}
+main.start .code-card button.share {
+  margin-top: 10px;
+  width: 100%;
+  background: var(--felt);
+  border-color: var(--felt);
+  color: var(--on-felt);
+}
+.invite-url {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--ink-muted);
+  word-break: break-all;
+  user-select: all;
+}
+
+main.start input.code-input {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.members {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.members li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--card);
+  animation: member-in 360ms ease-out both;
+}
+.members li b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.members .tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--felt);
+}
+.members li.off .tag {
+  color: var(--red);
+}
+.members li.cpu {
+  opacity: 0.6;
+  animation: none;
+}
+@keyframes member-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fbe3e0;
+  color: #8f2a22;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.waiting-text {
+  margin-top: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.waiting-text .dots i {
+  background: var(--ink-muted);
+}
+
+/* ゲーム中：通信が切れている人 */
+.offline-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: middle;
+}
+.btn.leave-room {
+  margin-top: 18px;
+}
+
+/* 友達側：ホストとの通信が切れた */
+.conn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 30, 22, 0.78);
+}
+.conn-overlay .panel {
+  width: min(360px, 100%);
+  padding: 18px 16px;
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  color: var(--ink);
+  text-align: center;
+  display: grid;
+  gap: 10px;
+  font-weight: 700;
+}
+.conn-overlay button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 2px solid var(--gold-edge);
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 900;
+}
+.conn-overlay button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ink-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .members li {
+    animation: none;
+  }
+}

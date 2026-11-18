@@ -58,6 +58,9 @@ describe('効果音の台本', () => {
   it('人間の番とCPUの番で音が違う。ゾロ目・交換・勝利にも音', () => {
     expect(names([{ type: 'TURN_STARTED', playerId: human }])).toEqual(['myTurn']);
     expect(names([{ type: 'TURN_STARTED', playerId: cpu }])).toEqual(['turn']);
+    // オンラインでは、自分の席の番だけ「自分の番」の音
+    const [turn] = buildSteps([{ type: 'TURN_STARTED', playerId: human }], 'normal');
+    expect(cuesForStep(turn, game, 0.7, cpu).map((c) => c.name)).toEqual(['turn']);
     expect(names([{ type: 'EXTRA_TURN', playerId: human }])).toEqual(['extraTurn']);
     expect(names([{ type: 'CARDS_SWAPPED', a: human, b: cpu, aCard: 'wheat', bCard: 'bakery' }])).toEqual(['swap']);
     expect(names([{ type: 'GAME_WON', playerId: human }])).toEqual(['win']);

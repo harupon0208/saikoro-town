@@ -32,7 +32,15 @@ interface Props {
   settings: Settings;
   onSettings: (s: Settings) => void;
   onExit: () => void;
+  /** オンライン対戦：自分の席（同じ端末で遊ぶときは undefined） */
+  viewerId?: number;
+  /** オンライン対戦：通信が切れている人の席 */
+  offline?: number[];
+  /** オンライン対戦：部屋を出る */
+  onLeaveRoom?: () => void;
 }
+
+const NO_OFFLINE: number[] = [];
 
 const PHASE_LABELS: Record<Phase, string> = {
   chooseDice: 'サイコロ',
@@ -72,6 +80,8 @@ function makeFx(step: Step | null, stepKey: number, speed: Speed): Fx {
 
 export function GameScreen(props: Props) {
   const { game, step, stepKey, speed, rollEvents, cpuPick, dispatch, onSkip, settings, onSettings, onExit } = props;
+  const { viewerId, offline = NO_OFFLINE, onLeaveRoom } = props;
+  const online = viewerId !== undefined;
   const isDesktop = useMediaQuery('(min-width: 768px)');
   const playing = step !== null;
   const current = game.players[game.current];
@@ -80,7 +90,9 @@ export function GameScreen(props: Props) {
   // 「自分」として下に表示する人：人間の手番ならその人、CPUの手番中は最後に操作した人間
   const viewerRef = useRef(humans[0]?.id ?? game.current);
   if (current.isHuman) viewerRef.current = current.id;
-  const viewer = game.players[humans.length > 0 ? viewerRef.current : game.current];
+  // オンラインでは自分の席がいつも下
+  if (online) viewerRef.current = viewerId;
+  const viewer = game.players[online || humans.length > 0 ? viewerRef.current : game.current];
   const rivals = game.players.filter((p) => p.id !== viewer.id);
   const myTurn = current.isHuman && current.id === viewer.id && game.phase !== 'gameOver';
   const canAct = myTurn && !playing;
@@ -99,7 +111,7 @@ export function GameScreen(props: Props) {
   // 同じ端末で人間が複数いるとき：手番の最初に「〇〇さんの番です」を出す
   const [readyKey, setReadyKey] = useState('');
   const turnKey = `${game.turn}-${game.current}`;
-  const needHandoff = humans.length >= 2 && canAct && game.phase === 'chooseDice' && readyKey !== turnKey;
+  const needHandoff = !online && humans.length >= 2 && canAct && game.phase === 'chooseDice' && readyKey !== turnKey;
 
   const buildOptions = canAct ? getBuildOptions(game) : [];
   const background = themeImageUrl('background');
@@ -118,6 +130,7 @@ export function GameScreen(props: Props) {
       step={step}
       stepKey={stepKey}
       cpuPick={cpuPick}
+      offline={offline}
       dispatch={dispatch}
     />
   );
@@ -155,7 +168,7 @@ export function GameScreen(props: Props) {
         {isDesktop ? (
           <div className="desk-grid">
             <div className="desk-rivals">
-              <Rivals players={rivals} current={game.current} fx={fx} anchors onPick={setDetail} />
+              <Rivals players={rivals} current={game.current} fx={fx} anchors offline={offline} onPick={setDetail} />
             </div>
             <div className="desk-center">{dicePanel}</div>
             <div className="desk-log felt-dark">
@@ -179,6 +192,11 @@ export function GameScreen(props: Props) {
                 >
                   <span className="rival-mini-head">
                     <b>{p.name}</b>
+                    {offline.includes(p.id) && (
+                      <span className="offline-tag" title="通信が切れています">
+                        通信切れ
+                      </span>
+                    )}
                     <Coins player={p} fx={fx} />
                   </span>
                   <LandmarkDots player={p} fx={fx} />
@@ -191,7 +209,14 @@ export function GameScreen(props: Props) {
               {tab === 'market' && market}
               {tab === 'town' && town}
               {tab === 'rivals' && (
-                <Rivals players={rivals} current={game.current} fx={fx} anchors={false} onPick={setDetail} />
+                <Rivals
+                  players={rivals}
+                  current={game.current}
+                  fx={fx}
+                  anchors={false}
+                  offline={offline}
+                  onPick={setDetail}
+                />
               )}
               {tab === 'log' && <div className="felt-dark">{log}</div>}
             </div>
@@ -239,7 +264,12 @@ export function GameScreen(props: Props) {
       )}
 
       {showSettings && (
-        <SettingsSheet settings={settings} onChange={onSettings} onClose={() => setShowSettings(false)} />
+        <SettingsSheet
+          settings={settings}
+          onChange={onSettings}
+          onClose={() => setShowSettings(false)}
+          onLeaveRoom={onLeaveRoom}
+        />
       )}
 
       {needHandoff && (
@@ -269,6 +299,7 @@ function DicePanel({
   step,
   stepKey,
   cpuPick,
+  offline,
   dispatch,
 }: {
   game: GameState;
@@ -279,6 +310,7 @@ function DicePanel({
   step: Step | null;
   stepKey: number;
   cpuPick: CpuPick | null;
+  offline: number[];
   dispatch: (a: Action) => void;
 }) {
   const current = game.players[game.current];
@@ -317,6 +349,12 @@ function DicePanel({
           <i />
           <i />
         </span>
+      </span>
+    );
+  } else if (!canAct && offline.includes(current.id)) {
+    prompt = (
+      <span className="waiting" data-testid="waiting-offline">
+        {current.name}の通信が切れています。戻ってくるのを待っています…
       </span>
     );
   } else if (!canAct) prompt = <span className="waiting">{current.name}の番…</span>;
@@ -537,10 +575,12 @@ function SettingsSheet({
   settings,
   onChange,
   onClose,
+  onLeaveRoom,
 }: {
   settings: Settings;
   onChange: (s: Settings) => void;
   onClose: () => void;
+  onLeaveRoom?: () => void;
 }) {
   return (
     <Sheet onClose={onClose}>
@@ -593,6 +633,16 @@ function SettingsSheet({
           onPointerUp={() => playSound('coin')}
         />
       </label>
+      {onLeaveRoom && (
+        <button
+          className="btn wide leave-room"
+          onClick={() => {
+            if (window.confirm('部屋を出ますか？（ゲームには戻れなくなることがあります）')) onLeaveRoom();
+          }}
+        >
+          部屋を出る
+        </button>
+      )}
     </Sheet>
   );
 }

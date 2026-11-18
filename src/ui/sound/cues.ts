@@ -35,8 +35,9 @@ const COIN_GAP = 70;
 /**
  * 1コマぶんの効果音。
  * landAt はサイコロのコマのうち転がっている割合（Die.tsx の LAND_AT）。
+ * mine はオンライン対戦での自分の席（同じ端末で遊ぶときは undefined：人間の番は全部「自分の番」の音）。
  */
-export function cuesForStep(step: Step, game: GameState, landAt: number): Cue[] {
+export function cuesForStep(step: Step, game: GameState, landAt: number, mine?: number): Cue[] {
   const cues: Cue[] = [];
   const t = coinTiming(step);
   switch (step.kind) {
@@ -73,7 +74,8 @@ export function cuesForStep(step: Step, game: GameState, landAt: number): Cue[] 
       break;
     case 'turn': {
       const e = step.events[0];
-      const human = e.type === 'TURN_STARTED' && game.players[e.playerId].isHuman;
+      const human =
+        e.type === 'TURN_STARTED' && (mine === undefined ? game.players[e.playerId].isHuman : e.playerId === mine);
       cues.push({ name: human ? 'myTurn' : 'turn', at: 0 });
       break;
     }
@@ -88,10 +90,10 @@ export function cuesForStep(step: Step, game: GameState, landAt: number): Cue[] 
  * アニメーション「なし」のとき：イベントをまとめて、同じ音は1回だけすぐ鳴らす。
  * （長さのある音やコインの連打は鳴らさない）
  */
-export function cuesForEvents(events: GameEvent[], game: GameState): Cue[] {
+export function cuesForEvents(events: GameEvent[], game: GameState, mine?: number): Cue[] {
   const names = new Set<SoundName>();
   for (const step of buildSteps(events, 'normal')) {
-    for (const c of cuesForStep(step, game, 0.7)) {
+    for (const c of cuesForStep(step, game, 0.7, mine)) {
       if (c.name === 'roll') continue;
       names.add(c.name);
     }

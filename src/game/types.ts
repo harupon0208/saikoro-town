@@ -55,6 +55,8 @@ export interface Player {
   id: number;
   name: string;
   isHuman: boolean;
+  /** オンライン対戦のみ：この席を操作する端末の ID */
+  owner?: string;
   /** CPU のみ。保存・再開しても同じ性格を使う */
   personality?: Personality;
   coins: number;
@@ -124,6 +126,8 @@ export type Rng = () => number;
 export interface SeatConfig {
   name: string;
   isHuman: boolean;
+  /** オンライン対戦のみ：この席を操作する端末の ID */
+  owner?: string;
 }
 
 export interface GameConfig {

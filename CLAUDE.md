@@ -31,8 +31,15 @@
     - 開発サーバーでは鳴らした音の名前が `window.__sfxLog` に残る（`e2e/sound.spec.ts`）
   - 高級感は `src/ui/luxe.css`（最後に読み込む）。方向は「今の緑を磨く」（ユーザー選択）：卓の照明とふちの暗さ、木目＋真鍮の帯、金の箔押しタイトル、パネル・カードの内側の金の細線、カードに光が流れる、刻印の金貨、真鍮のボタン、光の粒（`Effects.tsx` の `Ambience`）、開始画面の飾り線
   - `.prompt .btn.gold` の光の筋は真鍮の背景に重ねてある（背景画像を上書きすると透明になるので注意）
+- オンライン対戦（2026-11-18。SPEC 13章。ユーザー選択：ホストの端末が親になる方式・サーバーなし）
+  - `src/net/`：`lobby.ts`（部屋コード・参加・席・自分の席の操作か。純粋関数）、`protocol.ts`（メッセージと形の確認）、`room.ts`（`HostRoom` / `GuestRoom`。4秒ごとに ping、15秒返事がなければ通信切れ）、`transport.ts`（PeerJS。開発サーバーで `?net=local` なら BroadcastChannel で同じブラウザのタブどうし）
+  - ホストが applyAction・サイコロ・CPU を持ち、状態とイベントを配る。友達は操作を送り、届いた状態を再生するだけ。`Player.owner` が席の持ち主（ホストは `'host'`、友達はタブごとの ID＝sessionStorage）
+  - `App.tsx`：状態は `authRef`（正しい最新）と `shown`（再生し終えたところ）に分け、再生中に届いた変化は `queueRef` に溜めて順に再生する
+  - オンラインのゲームは途中保存しない。ホストが閉じたら部屋は終わる。友達は同じコードで入り直せば席に戻れる
+  - 招待リンク `?room=1234`。⚙ に「部屋を出る」
+  - e2e：`e2e/online.spec.ts`（2タブ・`?net=local`）。本物の PeerJS は `ONLINE_REAL=1 npx playwright test e2e/online-real.spec.ts --project=desktop`（ネットが必要。普段はスキップ）
 - ルールは元の基本セットと照合済み（2026-11-18 に外部資料で再確認：カード15種・ランドマーク・処理順・赤は逆回り・払えない分は免除・紫は1人1枚・同じカードは枚数ぶん発動）。解釈で決めた点：電波塔の振り直しは同じ個数で、振り直した目を必ず使う（カード15種の色・目・コスト・収入・在庫、ランドマーク4種、処理順、モールの対象、払えない時の扱い）
-- 公開（GitHub Pages）は未実施。ユーザーが後でやる予定（2026-11-18時点）。deploy.yml は用意済み。このフォルダはまだ git 管理外、gh コマンドも未インストール。ユーザーがGitHubアカウント・公開リポジトリ `saikoro-town` を用意 → こちらで git init・コミット・push → Settings → Pages で「GitHub Actions」を選ぶ、の流れ
+- 公開済み：https://harupon0208.github.io/saikoro-town/ （リポジトリ harupon0208/saikoro-town。`main` に push すると自動でテスト→ビルド→公開。コミットの作者は harupon0208 と noreply アドレス）
 - スマホ（同じWi-Fi）で試すときは開発サーバーを `npx vite --port 5173 --strictPort --host` で起動する
 - 次はステップ3（CPU）とステップ5（仕上げ：ルール説明・早送り・もう一回）。CPUの強さの調整はユーザーが後で考える（こちらから提案しない）
 

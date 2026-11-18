@@ -39,7 +39,8 @@ function isInt(x: unknown): x is number {
   return typeof x === 'number' && Number.isInteger(x);
 }
 
-function isGameState(x: unknown): boolean {
+/** JSON から読んだ値が GameState の形か（保存データ・オンラインで届いた状態の確認に使う） */
+export function isGameState(x: unknown): x is GameState {
   if (!isObj(x)) return false;
   const { players, supply, current, phase, dice, rerollUsed, turn, log } = x;
   if (!Array.isArray(players) || players.length < 2 || players.length > 4) return false;
@@ -47,6 +48,7 @@ function isGameState(x: unknown): boolean {
     if (!isObj(p) || !isInt(p.id) || typeof p.name !== 'string' || typeof p.isHuman !== 'boolean')
       return false;
     if (!isInt(p.coins) || p.coins < 0) return false;
+    if (p.owner !== undefined && typeof p.owner !== 'string') return false;
     if (!isObj(p.cards) || !FACILITY_IDS.every((id) => isInt((p.cards as Record<string, unknown>)[id])))
       return false;
     if (

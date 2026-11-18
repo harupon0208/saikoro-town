@@ -8,7 +8,12 @@ interface Props {
   onContinue: () => void;
   onDiscardSave: () => void;
   onStart: (config: GameConfig) => void;
+  onHostRoom: () => void;
+  onJoinRoom: () => void;
 }
+
+/** CPU の名前（オンライン対戦で空いた席にも使う） */
+export const CPU_NAMES = ['ハル', 'ミナト', 'ソラ'];
 
 const DEFAULT_SEATS: SeatConfig[] = [
   { name: 'あなた', isHuman: true },
@@ -17,7 +22,7 @@ const DEFAULT_SEATS: SeatConfig[] = [
   { name: 'ソラ', isHuman: false },
 ];
 
-export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart }: Props) {
+export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart, onHostRoom, onJoinRoom }: Props) {
   const [count, setCount] = useState(4);
   const [seats, setSeats] = useState<SeatConfig[]>(DEFAULT_SEATS);
 
@@ -100,6 +105,17 @@ export function StartScreen({ hasSave, onContinue, onDiscardSave, onStart }: Pro
           </button>
         </section>
       )}
+
+      <section className="panel online-panel" aria-label="オンラインで遊ぶ">
+        <h2>オンラインで遊ぶ</h2>
+        <p className="note">友達のスマホとつないで、それぞれの画面で遊べます。</p>
+        <div className="row">
+          <button className="primary" onClick={onHostRoom}>
+            部屋を作る
+          </button>
+          <button onClick={onJoinRoom}>部屋に入る</button>
+        </div>
+      </section>
     </main>
   );
 }
