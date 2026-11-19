@@ -8,6 +8,9 @@ describe('メッセージの確認', () => {
   it('ホストに届くもの：形がおかしいものは捨てる', () => {
     expect(parseToHost({ t: 'hello', clientId: 'x', name: 'アキ' })).toEqual({ t: 'hello', clientId: 'x', name: 'アキ' });
     expect(parseToHost({ t: 'action', action: { type: 'KEEP', playerId: 1 } })).not.toBeNull();
+    expect(parseToHost({ t: 'action', action: { type: 'TUNA', playerId: 1 } })).not.toBeNull();
+    expect(parseToHost({ t: 'ping' })).toEqual({ t: 'ping' });
+    expect(parseToHost({ t: 'pong' })).toEqual({ t: 'pong' });
     expect(parseToHost({ t: 'action', action: { type: 'CHEAT', playerId: 1 } })).toBeNull();
     expect(parseToHost({ t: 'action', action: { type: 'KEEP' } })).toBeNull();
     expect(parseToHost({ t: 'hello', clientId: 3 })).toBeNull();
@@ -24,6 +27,12 @@ describe('メッセージの確認', () => {
     expect(parseToGuest({ ...room, options: { expansions: ['moon'], market: 'ten' } })).toBeNull();
     expect(parseToGuest(room)).toBeNull();
     expect(parseToGuest({ t: 'pick', pick: null })).toEqual({ t: 'pick', pick: null });
+    expect(parseToGuest({ t: 'ping' })).toEqual({ t: 'ping' });
+    expect(parseToGuest({ t: 'pong' })).toEqual({ t: 'pong' });
+    // マグロ漁船のサイコロ待ち・振ったサイコロも届く。おかしな目は捨てる
+    const tuna = { ...state, phase: 'tuna', tunaDice: [3, 4] };
+    expect(parseToGuest({ t: 'state', state: tuna, events: [], offline: [] })?.t).toBe('state');
+    expect(parseToGuest({ t: 'state', state: { ...tuna, tunaDice: [7, 1] }, events: [], offline: [] })).toBeNull();
     expect(parseToGuest({ t: 'nope' })).toBeNull();
   });
 });

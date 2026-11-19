@@ -159,12 +159,41 @@ describe('港の拡張の施設', () => {
     s.players[1].cards.tuna = 2;
     s.players[2].cards.tuna = 1; // 港がない
     s.players[0].cards.tuna = 1;
-    const r = act(roll(s, 6, 6).state, { type: 'HARBOR', playerId: 0, add: false }, diceRng(3, 4));
+    // 港の+2を決めたら、手番の人がマグロ漁船のサイコロを振るのを待つ（勝手に振らない）
+    const waiting = act(roll(s, 6, 6).state, { type: 'HARBOR', playerId: 0, add: false }, diceRng(1, 1));
+    expect(waiting.state.phase).toBe('tuna');
+    expect(waiting.events.some((e) => e.type === 'TUNA_ROLLED' || e.type === 'COINS_MOVED')).toBe(false);
+    expect(isValidAction(waiting.state, { type: 'TUNA', playerId: 1 })).toBe(false); // 振るのは手番の人だけ
+    const r = act(waiting.state, { type: 'TUNA', playerId: 0 }, diceRng(3, 4));
+    expect(r.state.tunaDice).toEqual([3, 4]);
+    expect(r.state.log.some((l) => l.text.includes('マグロ漁船：') && l.text.includes('3+4=7'))).toBe(true);
     const tunaRolls = r.events.filter((e) => e.type === 'TUNA_ROLLED');
     expect(tunaRolls).toEqual([{ type: 'TUNA_ROLLED', playerId: 0, dice: [3, 4] }]);
     expect(r.events).toContainEqual({ type: 'COINS_MOVED', from: 'bank', to: 0, amount: 7, cardId: 'tuna' });
     expect(r.events).toContainEqual({ type: 'COINS_MOVED', from: 'bank', to: 1, amount: 14, cardId: 'tuna' });
     expect(r.state.players[2].coins).toBe(3);
+  });
+
+  it('マグロ漁船：港を持っている人が誰も持っていなければ、サイコロを待たずに進む', () => {
+    const s = harborGame(2);
+    s.players[0].landmarks.station = true;
+    s.players[1].cards.tuna = 1; // 港がない
+    const r = roll(s, 6, 6);
+    expect(r.state.phase).not.toBe('tuna');
+    expect(r.events.some((e) => e.type === 'TUNA_ROLLED')).toBe(false);
+  });
+
+  it('マグロ漁船：港の+2で12になったときも振る。次の手番では消える', () => {
+    const s = harborGame(2);
+    s.players[0].landmarks.station = true;
+    s.players[0].landmarks.harbor = true;
+    s.players[0].cards.tuna = 1;
+    const w = act(roll(s, 5, 5).state, { type: 'HARBOR', playerId: 0, add: true }, diceRng(1, 1));
+    expect(w.state.phase).toBe('tuna');
+    const r = act(w.state, { type: 'TUNA', playerId: 0 }, diceRng(6, 6));
+    expect(r.events).toContainEqual({ type: 'COINS_MOVED', from: 'bank', to: 0, amount: 12, cardId: 'tuna' });
+    const next = act(r.state, { type: 'BUILD', playerId: 0, id: null }, diceRng(1, 1)).state;
+    expect(next.tunaDice).toBeUndefined();
   });
 
   it('花畑と花屋：花屋は自分の花畑の枚数 × 1（モールで × 2）', () => {

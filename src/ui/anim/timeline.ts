@@ -137,13 +137,17 @@ export function buildSteps(events: GameEvent[], speed: Speed): Step[] {
 // 画面に出す状態
 
 /** 画面がイベントに合わせて追いかける部分 */
-type Replayed = Pick<GameState, 'players' | 'supply' | 'dice' | 'current' | 'harborBonus' | 'deck'>;
+type Replayed = Pick<GameState, 'players' | 'supply' | 'dice' | 'current' | 'harborBonus' | 'tunaDice' | 'deck'>;
 
 function applyEvent(v: Replayed, e: GameEvent): void {
   switch (e.type) {
     case 'DICE_ROLLED':
       v.dice = [...e.dice];
       delete v.harborBonus;
+      delete v.tunaDice;
+      break;
+    case 'TUNA_ROLLED':
+      v.tunaDice = [...e.dice];
       break;
     case 'HARBOR_ADDED':
       v.harborBonus = true;
@@ -175,6 +179,7 @@ function applyEvent(v: Replayed, e: GameEvent): void {
     case 'TURN_STARTED':
       v.current = e.playerId;
       delete v.harborBonus;
+      delete v.tunaDice;
       break;
   }
 }
@@ -200,6 +205,7 @@ export function replayAll(from: GameState, events: GameEvent[]): Replayed {
       dice: from.dice,
       current: from.current,
       harborBonus: from.harborBonus,
+      tunaDice: from.tunaDice,
       deck: from.deck,
     }),
   );

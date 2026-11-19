@@ -1055,3 +1055,36 @@ main.start .panel {
   opacity: 0.72;
   filter: grayscale(0.2);
 }
+
+/* マグロ漁船：手番の人が振ったサイコロ2個（小さめ） */
+.tuna-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(80, 150, 220, 0.18);
+  font-weight: 800;
+}
+.tuna-row .dice {
+  min-height: 40px;
+  gap: 8px;
+}
+.tuna-row .die,
+.desktop .tuna-row .die {
+  --size: 36px;
+  --half: 18px;
+  width: var(--size);
+  height: var(--size);
+}
+.tuna-row .die span.pip {
+  width: 7px;
+  height: 7px;
+}
+.tuna-row .total-pop {
+  font-size: 1.4rem;
+}
+.tuna-label {
+  font-size: 0.85rem;
+}

@@ -115,6 +115,7 @@ function doRoll(ctx: Ctx, count: number): void {
   const s = ctx.s;
   s.dice = Array.from({ length: count }, () => rollDie(ctx.rng));
   delete s.harborBonus;
+  delete s.tunaDice;
   ctx.ev.push({ type: 'DICE_ROLLED', playerId: s.current, dice: [...s.dice] });
   const p = s.players[s.current];
   log(ctx, `${p.name}が${s.dice.join('+')}${count === 2 ? `=${sum(s.dice)}` : ''}を出した`);
@@ -132,7 +133,28 @@ function afterRoll(ctx: Ctx): void {
 /** 出目が決まった（振り直さない）：港で+2を選べるなら選ばせる */
 function afterDiceFixed(ctx: Ctx): void {
   if (canUseHarbor(ctx.s)) ctx.s.phase = 'harbor';
+  else beforeIncome(ctx);
+}
+
+/** この出目でマグロ漁船が動く（港を持っている人が1枚以上持っている） */
+export function needsTunaRoll(state: GameState): boolean {
+  if (!FACILITIES.tuna.rolls.includes(rollTotal(state))) return false;
+  return state.players.some((p) => p.cards.tuna > 0 && meetsRequirement(p, 'tuna'));
+}
+
+/** 合計が決まった：マグロ漁船が動くなら、手番の人がサイコロ2個を振るのを待つ */
+function beforeIncome(ctx: Ctx): void {
+  if (needsTunaRoll(ctx.s)) ctx.s.phase = 'tuna';
   else resolveIncomeInner(ctx);
+}
+
+function rollTuna(ctx: Ctx): number[] {
+  const s = ctx.s;
+  const dice = [rollDie(ctx.rng), rollDie(ctx.rng)];
+  s.tunaDice = dice;
+  ctx.ev.push({ type: 'TUNA_ROLLED', playerId: s.current, dice: [...dice] });
+  log(ctx, `マグロ漁船：${s.players[s.current].name}が${dice.join('+')}=${sum(dice)}を出した`);
+  return dice;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,17 +182,8 @@ function resolveIncomeInner(ctx: Ctx): void {
   }
 
   // ② 青（全員）・緑（active のみ）。active から手番順に処理
-  // マグロ漁船：手番の人がサイコロ2個を振る（1手番に1回。持っている人全員がその目を使う）
-  let tuna: number | null = null;
-  const tunaRoll = (): number => {
-    if (tuna === null) {
-      const dice = [rollDie(ctx.rng), rollDie(ctx.rng)];
-      tuna = sum(dice);
-      ctx.ev.push({ type: 'TUNA_ROLLED', playerId: active, dice });
-      log(ctx, `マグロ漁船：${s.players[active].name}が${dice.join('+')}=${tuna}を出した`);
-    }
-    return tuna;
-  };
+  // マグロ漁船：手番の人が振ったサイコロ2個（TUNA）の合計。持っている人全員がその目を使う
+  const tunaRoll = (): number => sum(s.tunaDice ?? rollTuna(ctx));
   for (let i = 0; i < n; i++) {
     const owner = (active + i) % n;
     const p = s.players[owner];
@@ -373,6 +386,7 @@ function startTurn(ctx: Ctx, playerId: number): void {
   s.rerollUsed = false;
   delete s.pendingChoice;
   delete s.harborBonus;
+  delete s.tunaDice;
   ctx.ev.push({ type: 'TURN_STARTED', playerId });
 }
 
@@ -397,6 +411,8 @@ export function isValidAction(state: GameState, action: Action): boolean {
       return state.phase === 'rolled';
     case 'HARBOR':
       return state.phase === 'harbor' && typeof action.add === 'boolean';
+    case 'TUNA':
+      return state.phase === 'tuna';
     case 'CHOOSE_TARGET':
       return (
         state.phase === 'resolving' &&
@@ -448,6 +464,10 @@ export function applyAction(state: GameState, action: Action, rng: Rng): ActionR
         ctx.ev.push({ type: 'HARBOR_ADDED', playerId: s.current });
         log(ctx, `${s.players[s.current].name}は港で+2して${rollTotal(s)}にした`);
       }
+      beforeIncome(ctx);
+      break;
+    case 'TUNA':
+      rollTuna(ctx);
       resolveIncomeInner(ctx);
       break;
     case 'CHOOSE_TARGET':

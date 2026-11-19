@@ -12,7 +12,7 @@ export interface StorageLike {
   removeItem(key: string): void;
 }
 
-const PHASES: Phase[] = ['chooseDice', 'rolled', 'harbor', 'resolving', 'build', 'gameOver'];
+const PHASES: Phase[] = ['chooseDice', 'rolled', 'harbor', 'tuna', 'resolving', 'build', 'gameOver'];
 /** 基本セットのランドマーク（どのゲームにも必ずある） */
 const BASE_LANDMARKS = ['station', 'mall', 'park', 'tower'];
 
@@ -92,6 +92,11 @@ export function isGameState(x: unknown): x is GameState {
   if (deck !== undefined && !(Array.isArray(deck) && deck.every((d) => typeof d === 'string' && isFacilityId(d))))
     return false;
   if (harborBonus !== undefined && typeof harborBonus !== 'boolean') return false;
+  const { tunaDice } = x;
+  if (tunaDice !== undefined) {
+    if (!Array.isArray(tunaDice) || tunaDice.length !== 2) return false;
+    if (!tunaDice.every((d) => isInt(d) && d >= 1 && d <= 6)) return false;
+  }
   const { refill } = x;
   if (refill !== undefined) {
     const ids = (v: unknown) => Array.isArray(v) && v.every((d) => typeof d === 'string' && isFacilityId(d));

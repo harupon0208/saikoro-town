@@ -16,6 +16,8 @@ export interface Pick {
 export type ToHost =
   | { t: 'hello'; clientId: string; name: string }
   | { t: 'action'; action: Action }
+  /** 生きているかの確認（返事は pong） */
+  | { t: 'ping' }
   | { t: 'pong' };
 
 /** ホスト → 友達 */
@@ -31,7 +33,9 @@ export type ToGuest =
   | { t: 'reject'; reason: string }
   /** ホストが部屋を閉じた */
   | { t: 'closed' }
-  | { t: 'ping' };
+  /** 生きているかの確認（返事は pong） */
+  | { t: 'ping' }
+  | { t: 'pong' };
 
 const isObj = (x: unknown): x is Record<string, unknown> =>
   typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -39,7 +43,7 @@ const isInt = (x: unknown): x is number => typeof x === 'number' && Number.isInt
 const isStr = (x: unknown): x is string => typeof x === 'string';
 const isIntList = (x: unknown): x is number[] => Array.isArray(x) && x.every(isInt);
 
-const ACTION_TYPES = ['CHOOSE_DICE', 'REROLL', 'KEEP', 'HARBOR', 'CHOOSE_TARGET', 'SWAP', 'SKIP_SWAP', 'BUILD'];
+const ACTION_TYPES = ['CHOOSE_DICE', 'REROLL', 'KEEP', 'HARBOR', 'TUNA', 'CHOOSE_TARGET', 'SWAP', 'SKIP_SWAP', 'BUILD'];
 
 function isAction(x: unknown): x is Action {
   // 中身の正しさは isValidAction が確かめる。ここでは形だけ
@@ -55,6 +59,8 @@ export function parseToHost(x: unknown): ToHost | null {
         : null;
     case 'action':
       return isAction(x.action) ? { t: 'action', action: x.action } : null;
+    case 'ping':
+      return { t: 'ping' };
     case 'pong':
       return { t: 'pong' };
     default:
@@ -105,6 +111,8 @@ export function parseToGuest(x: unknown): ToGuest | null {
       return { t: 'closed' };
     case 'ping':
       return { t: 'ping' };
+    case 'pong':
+      return { t: 'pong' };
     default:
       return null;
   }

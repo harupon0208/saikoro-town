@@ -88,7 +88,7 @@ export interface Player {
 }
 
 /** harbor = 港で「+2するか」を選ぶ */
-export type Phase = 'chooseDice' | 'rolled' | 'harbor' | 'resolving' | 'build' | 'gameOver';
+export type Phase = 'chooseDice' | 'rolled' | 'harbor' | 'tuna' | 'resolving' | 'build' | 'gameOver';
 
 export type PendingChoice =
   | { type: 'tv'; playerId: number }
@@ -124,6 +124,8 @@ export interface GameState {
   deck?: FacilityId[];
   /** 港で合計に2を足した */
   harborBonus?: boolean;
+  /** マグロ漁船で手番の人が振ったサイコロ2個（その手番のあいだ残す） */
+  tunaDice?: number[];
   /** 最後に市場へ補充したカード（10種類の市場）。turn から一周するまで画面で「NEW」「補充」を出す */
   refill?: MarketRefill;
   current: number;
@@ -143,6 +145,8 @@ export type Action =
   | { type: 'KEEP'; playerId: number }
   /** 港：合計に2を足すか */
   | { type: 'HARBOR'; playerId: number; add: boolean }
+  /** マグロ漁船：手番の人がサイコロ2個を振る */
+  | { type: 'TUNA'; playerId: number }
   | { type: 'CHOOSE_TARGET'; playerId: number; targetId: number }
   | { type: 'SWAP'; playerId: number; targetId: number; give: FacilityId; take: FacilityId }
   | { type: 'SKIP_SWAP'; playerId: number }

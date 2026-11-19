@@ -153,6 +153,7 @@ function shouldReroll(state: GameState): boolean {
   const before = state.players[me].coins;
   let after = applyAction(state, { type: 'KEEP', playerId: me }, () => 0).state;
   if (after.phase === 'harbor') after = applyAction(after, chooseHarbor(after), () => 0).state;
+  after = settleTuna(after);
   const gain = after.players[me].coins - before;
   if (gain <= 0) return true;
   const p = state.players[me];
@@ -163,11 +164,17 @@ function shouldReroll(state: GameState): boolean {
   return after.players[me].coins < Math.min(...remaining);
 }
 
+/** 見積もり用：マグロ漁船のサイコロを待っていたら、平均くらいの目（4+4）で進めておく */
+function settleTuna(state: GameState): GameState {
+  if (state.phase !== 'tuna') return state;
+  return applyAction(state, { type: 'TUNA', playerId: state.current }, () => 0.5).state;
+}
+
 /** 港：+2したほうが自分のコインが増えるなら+2する（同じなら足さない） */
 function chooseHarbor(state: GameState): Action {
   const playerId = state.current;
   const gain = (add: boolean) =>
-    applyAction(state, { type: 'HARBOR', playerId, add }, () => 0.5).state.players[playerId].coins;
+    settleTuna(applyAction(state, { type: 'HARBOR', playerId, add }, () => 0.5).state).players[playerId].coins;
   return { type: 'HARBOR', playerId, add: gain(true) > gain(false) };
 }
 
@@ -208,6 +215,8 @@ export function chooseCpuAction(state: GameState): Action {
       return shouldReroll(state) ? { type: 'REROLL', playerId } : { type: 'KEEP', playerId };
     case 'harbor':
       return chooseHarbor(state);
+    case 'tuna':
+      return { type: 'TUNA', playerId };
     case 'resolving':
       if (state.pendingChoice?.type === 'tv') {
         return { type: 'CHOOSE_TARGET', playerId, targetId: chooseTvTarget(state) };

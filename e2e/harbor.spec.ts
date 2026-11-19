@@ -79,6 +79,33 @@ test.describe('港の拡張', () => {
     await expect(myBar(page).locator('.coins-wrap')).toHaveText('5'); // 3 + 青果市場（麦畑1 × 2）
   });
 
+  test('マグロ漁船：勝手に振らず、手番の人が「2個振る」を押すとサイコロが出て、合計×枚数もらえる', async ({ page }) => {
+    const save = harborState((s) => {
+      s.players[0].landmarks.station = true;
+      s.players[0].landmarks.harbor = true;
+      s.players[0].cards.tuna = 2;
+    });
+    await open(page, { speed: 'normal', fixedRandom: 0.99, save }); // サイコロはいつも 6
+    await page.getByRole('button', { name: '続きから' }).click();
+    await page.getByRole('button', { name: '2個振る', exact: true }).click();
+    await page.getByRole('button', { name: '12のまま' }).click({ timeout: 8000 });
+    // マグロ漁船のサイコロ待ち：まだ振られていない・お金も入っていない
+    await expect(phase(page)).toContainText('マグロ漁船');
+    const tunaButton = page.getByRole('button', { name: '🚢 2個振る' });
+    await expect(tunaButton).toBeVisible({ timeout: 8000 });
+    await expect(page.getByTestId('tuna-dice')).toHaveCount(0);
+    await expect(page.getByTestId('coins-0')).toContainText('3');
+    await tunaButton.click();
+    await expect(page.getByTestId('tuna-dice')).toBeVisible();
+    await expect(page.getByTestId('caption')).toHaveText('マグロ漁船：6+6=12！', { timeout: 8000 });
+    await expect(page.getByTestId('tuna-dice')).toContainText('=12');
+    await expect(page.getByTestId('coins-0')).toContainText('27', { timeout: 8000 }); // 3 + 2枚 × 12
+    await expect(page.getByRole('button', { name: '何も買わない' })).toBeVisible({ timeout: 8000 });
+    await page
+      .getByRole('region', { name: 'サイコロ' })
+      .screenshot({ path: `test-results/tuna-${test.info().project.name}.png` });
+  });
+
   test('空港：何も建てなかったら10コイン（演出つき）', async ({ page }) => {
     const save = harborState((s) => {
       s.players[0].landmarks.airport = true;

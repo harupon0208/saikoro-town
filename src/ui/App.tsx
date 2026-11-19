@@ -37,6 +37,9 @@ const INVITED_CODE = (() => {
   return v && isRoomCode(v) ? v : null;
 })();
 
+/** 友達側：通信が切れたとき、自動でつなぎ直し続ける時間 */
+const RECONNECT_FOR_MS = 120_000;
+
 /** CPU が建てようとしているカード（建てる前に指し示す） */
 export interface CpuPick {
   playerId: number;
@@ -96,6 +99,8 @@ export function App() {
   const [online, setOnlineState] = useState<Online | null>(null);
   const [offline, setOffline] = useState<number[]>([]);
   const [connIssue, setConnIssue] = useState<ConnIssue | null>(null);
+  const connIssueRef = useRef(connIssue);
+  connIssueRef.current = connIssue;
   const [name, setName] = useState(loadName);
   const [, setRoomTick] = useState(0);
   const onlineRef = useRef<Online | null>(null);
@@ -326,6 +331,25 @@ export function App() {
     return () => window.removeEventListener('pagehide', onHide);
   }, []);
 
+  // 画面に戻ってきたら：待ち時間を数え直してすぐ確認する。友達側で切れたままなら、つなぎ直す
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const o = onlineRef.current;
+      if (o?.role === 'host') o.room.wake();
+      if (o?.role === 'guest') {
+        if (o.room) o.room.wake();
+        else if (connIssueRef.current?.kind === 'lost') void reconnectRef.current(o.code);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onVisible);
+    };
+  }, []);
+
   // 招待リンクの ?room= は、読んだら URL から消す（戻ったときに何度も開かないように）
   useEffect(() => {
     if (!INVITED_CODE) return;
@@ -423,28 +447,41 @@ export function App() {
     }
   };
 
-  /** 友達側：ホストとの通信が切れたら、何回かつなぎ直してみる */
+  /**
+   * 友達側：ホストとの通信が切れたら、つながるまで自動でつなぎ直す（2分まで。だめなら「もう一度つなぐ」）。
+   * ホストのスマホが少し眠っていただけなら、起きたところでつながる
+   */
+  const reconnecting = useRef(false);
   const reconnect = async (code: string) => {
+    if (reconnecting.current) return;
+    reconnecting.current = true;
     setConnIssue({ kind: 'retrying' });
-    for (let i = 0; i < 3; i++) {
-      const o = onlineRef.current;
-      if (o?.role !== 'guest') return;
-      try {
-        const room = await GuestRoom.join(network, code, clientId, o.name, guestHandlers(code));
-        if (onlineRef.current !== o) {
-          room.leave();
+    const until = Date.now() + RECONNECT_FOR_MS;
+    try {
+      while (Date.now() < until) {
+        const o = onlineRef.current;
+        if (o?.role !== 'guest') return;
+        try {
+          const room = await GuestRoom.join(network, code, clientId, o.name, guestHandlers(code));
+          if (onlineRef.current !== o) {
+            room.leave();
+            return;
+          }
+          o.room = room;
+          sentRef.current = false;
+          setConnIssue(null);
           return;
+        } catch {
+          await new Promise((r) => setTimeout(r, 2000));
         }
-        o.room = room;
-        sentRef.current = false;
-        setConnIssue(null);
-        return;
-      } catch {
-        await new Promise((r) => setTimeout(r, 1500));
       }
+      if (onlineRef.current?.role === 'guest') setConnIssue({ kind: 'lost' });
+    } finally {
+      reconnecting.current = false;
     }
-    setConnIssue({ kind: 'lost' });
   };
+  const reconnectRef = useRef(reconnect);
+  reconnectRef.current = reconnect;
 
   // ---------------------------------------------------------------------------
 

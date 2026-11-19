@@ -239,10 +239,16 @@ export function ConnectionOverlay({
   onRetry: () => void;
   onExit: () => void;
 }) {
+  // つなぎ直している間は、画面を隠さず上に小さく出す（自動でつながるので待つだけ）
+  if (issue.kind === 'retrying')
+    return (
+      <div className="conn-banner" role="status" aria-label="通信">
+        ホストにつなぎ直しています…
+      </div>
+    );
   return (
     <div className="conn-overlay" role="alertdialog" aria-label="通信">
       <div className="panel">
-        {issue.kind === 'retrying' && <p>ホストにつなぎ直しています…</p>}
         {issue.kind === 'lost' && (
           <>
             <p>ホストとの通信が切れました。</p>
@@ -252,11 +258,9 @@ export function ConnectionOverlay({
           </>
         )}
         {issue.kind === 'closed' && <p>ホストが部屋を閉じました。</p>}
-        {issue.kind !== 'retrying' && (
-          <button className="ghost" onClick={onExit}>
-            タイトルへ
-          </button>
-        )}
+        <button className="ghost" onClick={onExit}>
+          タイトルへ
+        </button>
       </div>
     </div>
   );

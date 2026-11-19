@@ -193,8 +193,51 @@ describe('オンラインの部屋', () => {
       () => {},
       () => {},
     );
+    // 少し別のアプリを見ているくらいでは席を外さない
     await vi.advanceTimersByTimeAsync(20000);
+    expect(room.offline()).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(30000);
     expect(room.offline()).toHaveLength(1);
+    room.close();
+  });
+
+  it('ホストの返事が止まったら、友達側は「通信切れ」に気づく', async () => {
+    vi.useFakeTimers();
+    const { net, pairs } = memoryNetwork();
+    const room = await HostRoom.open(net, 'ホスト', () => 0.5, isValidAction);
+    const ha = handlers();
+    await GuestRoom.join(net, room.code, 'ca', 'アキ', ha);
+    await vi.advanceTimersByTimeAsync(10);
+    // ホストの端末が止まった：何も届かず、何も返さない
+    pairs[0].host.setHandlers(
+      () => {},
+      () => {},
+    );
+    pairs[0].host.send = () => {};
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(ha.log).not.toContain('lost');
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(ha.log).toContain('lost');
+    room.close();
+  });
+
+  it('自分の端末が眠っていた（タイマーが止まっていた）ときは、起きた瞬間に切らない', async () => {
+    vi.useFakeTimers();
+    const { net } = memoryNetwork();
+    const room = await HostRoom.open(net, 'ホスト', () => 0.5, isValidAction);
+    const ha = handlers();
+    await GuestRoom.join(net, room.code, 'ca', 'アキ', ha);
+    await vi.advanceTimersByTimeAsync(10);
+    room.start(createGame({ seats: seatsFor(room.members, 2, []) }, () => 0.5));
+    // 両方の端末が1分眠って、そのあいだタイマーが一度も動かなかった
+    vi.setSystemTime(Date.now() + 60000);
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(room.offline()).toHaveLength(0);
+    expect(ha.log).not.toContain('lost');
+    // そのあともふつうに続く
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(room.offline()).toHaveLength(0);
+    expect(ha.log).not.toContain('lost');
     room.close();
   });
 });

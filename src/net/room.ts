@@ -15,9 +15,19 @@ import {
 import { type Pick, type RoomMember, type ToGuest, parseToGuest, parseToHost } from './protocol';
 import { type HostEndpoint, type Link, NetError, type Network } from './transport';
 
-/** 生きているか確かめる間隔と、返事がないとみなすまでの時間 */
+/**
+ * 生きているかの確認。ホストと友達の両方が PING_MS ごとに ping を送り、受け取った側は pong を返す。
+ * 何か届けば「生きている」。返事がないとみなすまでの時間は、ホスト側を長めにする
+ * （友達がちょっと別のアプリを見ていても席を外さない。戻ってきたらそのまま続けられる）。
+ */
 const PING_MS = 4000;
-const DEAD_MS = 15000;
+const HOST_DEAD_MS = 45000;
+const GUEST_DEAD_MS = 20000;
+/**
+ * 自分のタイマーがこれ以上遅れたら、自分の端末が眠っていた（画面オフ・別アプリ・裏のタブ）とみなす。
+ * そのときは相手のせいにせず、待ち時間を数え直す。
+ */
+const SLEPT_MS = PING_MS * 2.5;
 
 interface GuestConn {
   link: Link;
@@ -33,6 +43,7 @@ export class HostRoom {
   private game: GameState | null = null;
   private conns = new Map<string, GuestConn>();
   private timer: ReturnType<typeof setInterval>;
+  private lastTick = Date.now();
 
   /** 部屋の様子が変わった（参加・退出・通信切れ） */
   onChange: () => void = () => {};
@@ -154,6 +165,8 @@ export class HostRoom {
             this.broadcast({ t: 'presence', offline: this.offline() });
           } else this.sendRoom();
           this.onChange();
+        } else if (msg.t === 'ping') {
+          link.send({ t: 'pong' } satisfies ToGuest);
         } else if (msg.t === 'action' && clientId) {
           const g = this.game;
           if (g && canControl(g, clientId, msg.action) && this.isValid(g, msg.action)) this.onAction(msg.action);
@@ -172,10 +185,25 @@ export class HostRoom {
     );
   }
 
+  /** 画面に戻ってきた・眠りから覚めた：待ち時間を数え直して、すぐ確認を送る */
+  wake() {
+    const now = Date.now();
+    this.lastTick = now;
+    for (const c of this.conns.values()) {
+      c.lastSeen = now;
+      c.link.send({ t: 'ping' } satisfies ToGuest);
+    }
+  }
+
   private heartbeat() {
     const now = Date.now();
+    if (now - this.lastTick > SLEPT_MS) {
+      this.wake();
+      return;
+    }
+    this.lastTick = now;
     for (const c of [...this.conns.values()]) {
-      if (now - c.lastSeen > DEAD_MS) c.link.close();
+      if (now - c.lastSeen > HOST_DEAD_MS) c.link.close();
       else c.link.send({ t: 'ping' } satisfies ToGuest);
     }
   }
@@ -210,6 +238,7 @@ export interface GuestHandlers {
 export class GuestRoom {
   private ended = false;
   private lastSeen = Date.now();
+  private lastTick = Date.now();
   private timer: ReturnType<typeof setInterval>;
 
   private constructor(
@@ -221,12 +250,7 @@ export class GuestRoom {
       (raw) => this.receive(raw),
       () => this.end(() => h.onLost()),
     );
-    this.timer = setInterval(() => {
-      if (Date.now() - this.lastSeen > DEAD_MS) {
-        this.link.close();
-        this.end(() => h.onLost());
-      }
-    }, PING_MS);
+    this.timer = setInterval(() => this.heartbeat(), PING_MS);
   }
 
   static async join(
@@ -244,6 +268,28 @@ export class GuestRoom {
 
   sendAction(action: Action) {
     this.link.send({ t: 'action', action });
+  }
+
+  /** 画面に戻ってきた・眠りから覚めた：待ち時間を数え直して、すぐ確認を送る */
+  wake() {
+    if (this.ended) return;
+    const now = Date.now();
+    this.lastSeen = now;
+    this.lastTick = now;
+    this.link.send({ t: 'ping' });
+  }
+
+  private heartbeat() {
+    const now = Date.now();
+    if (now - this.lastTick > SLEPT_MS) {
+      this.wake();
+      return;
+    }
+    this.lastTick = now;
+    if (now - this.lastSeen > GUEST_DEAD_MS) {
+      this.link.close();
+      this.end(() => this.h.onLost());
+    } else this.link.send({ t: 'ping' });
   }
 
   /** 自分から抜ける */
@@ -267,6 +313,8 @@ export class GuestRoom {
     switch (msg.t) {
       case 'ping':
         this.link.send({ t: 'pong' });
+        break;
+      case 'pong':
         break;
       case 'room':
         this.h.onRoom(msg.members, msg.count, msg.options);

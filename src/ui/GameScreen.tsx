@@ -48,6 +48,7 @@ const PHASE_LABELS: Record<Phase, string> = {
   chooseDice: 'サイコロ',
   rolled: '振り直し',
   harbor: '港',
+  tuna: 'マグロ漁船',
   resolving: '収入',
   build: '建設',
   gameOver: '終了',
@@ -343,6 +344,7 @@ function DicePanel({
   const total = rollTotal(game);
   const playerId = current.id;
   const rolling = step?.kind === 'dice';
+  const tunaRolling = step?.kind === 'tuna';
   // 振るたびに変わる番号（合計の「ポン」を、振ったときだけ出すため）
   const rollId = useRef(0);
   const lastRollKey = useRef(-1);
@@ -410,6 +412,18 @@ function DicePanel({
         </button>
       </>
     );
+  } else if (game.phase === 'tuna') {
+    const mine = game.players.filter((p) => p.cards.tuna > 0 && p.landmarks.harbor);
+    prompt = (
+      <>
+        <span className="hint">
+          🚢 マグロ漁船：サイコロ2個の合計×枚数がもらえます（{mine.map((p) => `${p.name}${p.cards.tuna}枚`).join('・')}）
+        </span>
+        <button className="btn gold" onClick={() => dispatch({ type: 'TUNA', playerId })}>
+          🚢 2個振る
+        </button>
+      </>
+    );
   } else if (game.phase === 'rolled') {
     prompt = (
       <>
@@ -460,6 +474,21 @@ function DicePanel({
           {!rolling && <IncomeLines game={game} viewer={viewer} events={rollEvents} />}
         </div>
       </div>
+      {game.tunaDice && (
+        <div className="tuna-row" data-testid="tuna-dice">
+          <span className="tuna-label">🚢 マグロ漁船</span>
+          <div className="dice">
+            <DiceView dice={game.tunaDice} rolling={tunaRolling} ms={step?.ms ?? 0} rollKey={stepKey} />
+          </div>
+          <b
+            key={`${stepKey}-${game.tunaDice.join('-')}`}
+            className="total-pop"
+            style={tunaRolling ? { animationDelay: `${Math.round((step?.ms ?? 0) * LAND_AT)}ms` } : undefined}
+          >
+            ={game.tunaDice[0] + game.tunaDice[1]}
+          </b>
+        </div>
+      )}
       <div className="prompt">{prompt}</div>
     </section>
   );

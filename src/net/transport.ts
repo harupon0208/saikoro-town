@@ -147,10 +147,22 @@ export const peerNetwork: Network = {
       peer.destroy();
       throw e;
     });
-    // 仲介サーバーとの接続が切れても、つながっている友達とは話せる。新しい人が入れるよう、つなぎ直す
-    peer.on('disconnected', () => {
-      if (!peer.destroyed) peer.reconnect();
-    });
+    // 仲介サーバーとの接続が切れても、つながっている友達とは話せる。
+    // 通信が切れた友達が入り直せるよう、つなぎ直す（失敗しても、しばらくおきに何度でも）
+    const relink = () => {
+      if (peer.destroyed || !peer.disconnected) return;
+      try {
+        peer.reconnect();
+      } catch {
+        // 次の確認でまた試す
+      }
+    };
+    peer.on('disconnected', relink);
+    const relinkTimer = setInterval(relink, 5000);
+    ep.close = () => {
+      clearInterval(relinkTimer);
+      peer.destroy();
+    };
     peer.on('connection', (conn) => {
       conn.on('open', () => ep.onLink(wrapConn(conn)));
     });
